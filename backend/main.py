@@ -8,7 +8,8 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from db import get_conn
 from maintenance import purge_expired
-from routers import circle, makers, persons, portrait, privacy, wishes
+from routers import admin, circle, maker_portal, makers, persons, portrait, privacy, requests, wishes
+
 
 load_dotenv()
 
@@ -68,3 +69,6 @@ app.include_router(portrait.router)
 app.include_router(privacy.router)
 app.include_router(circle.owner)
 app.include_router(circle.public)
+app.include_router(maker_portal.router)
+app.include_router(requests.router)
+app.include_router(admin.router)
