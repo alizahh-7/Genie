@@ -374,10 +374,43 @@ Trust is enforced in code. Makers are not visible until approved. In-person wish
 Wish Makers apply at `POST /makers/apply`. An admin reviews applications with the `ADMIN_TOKEN` header at `/admin/makers`. Email is optional: set `BREVO_API_KEY`, `MAIL_FROM_EMAIL`, `FRONTEND_URL`, and `ADMIN_EMAIL` to enable notifications.
 
 ---
+# Genie — Backend Testing Report on rest of the features
+### date: 17-10-2026
+## Overview
 
-## J. Commits
+The Genie backend was tested for expiry enforcement, Wish Maker matching, retention controls, Wish Circle and Wish Book functionality, public notices, API rate limiting, and repository secret exposure.
 
-| Commit message |
-|---|
-| `Maker onboarding: applications, admin review, maker portal, family requests, concern flags` |
-| `Email: notifications via Brevo API, link recovery, sample makers' countries` |
+**Testing environment:** Local FastAPI server, Supabase database, Swagger UI, PowerShell, and Supabase SQL Editor.
+
+## Test Results
+
+| No. | Test | Result | Observations |
+|---|---|---|---|
+| 1 | Expiry at read time | PASS | Expired person retrieval returned HTTP 404. Deletion returned HTTP 200. |
+| 2 | Text-based matching | PARTIALLY VERIFIED | Person, portrait, wish, and matching request were created successfully; the exact matching response was not preserved. |
+| 3 | Qloo-style matching | PASS | Meera Rao (`m01`) matched with `basis: qloo`, score `0.532`, and the reason `Shared taste: classic bollywood`. Reset of temporary test data remains unconfirmed. |
+| 4 | In-person matching | FAIL | The matching endpoint returned HTTP 200 but an empty `matches` array when Zainab Siddiqui (`m03`) was expected. |
+| 5 | Stored match suggestions | PARTIALLY VERIFIED | The requests endpoint returned HTTP 200; response contents and score ordering were not verified. |
+| 6 | Retention and administrative pinning | PASS — API RESPONSES | A 30-day retention request returned HTTP 200, a 5-day request returned HTTP 422, and administrative pinning returned HTTP 200. Database expiry changes were not independently checked. |
+| 7 | Wish Circle and Wish Book | PARTIALLY VERIFIED | Circle creation, Wish Book compilation, retrieval, sharing, and print endpoints returned HTTP 200. XSS behavior and share-link revocation still require verification. |
+| 8 | Public notices | PASS | `/meta/notices` returned HTTP 200 and included disclaimer, verification, privacy, matching-basis, and retention information. |
+| 9 | Rate limiting | PASS | Of 310 requests, 300 returned HTTP 200 and 10 returned HTTP 429. |
+| 10 | Git secret exposure | PENDING | Tracking and history checks for `backend/.env` have not yet been confirmed. |
+
+## Additional Qloo Probe
+
+The Qloo probe returned HTTP 200 with 20 results for each tested query, including music artists, songs, food, and locations. Some results were ambiguous or potentially unrelated, so successful retrieval does not establish semantic accuracy.
+
+## Issues
+
+1. Investigate why in-person matching returns no candidates for a relevant Hyderabad-based maker.
+2. Verify the exact response and ranking for text-based matching.
+3. Inspect stored match suggestions for score ordering, reasons, and matching basis.
+4. Verify that Wish Book content containing script-like text is rendered safely as plain text.
+5. Confirm that deleting a Wish Book share invalidates the public link.
+6. Confirm that the temporary Qloo tag used for testing has been reset.
+7. Run the Git secret-exposure checks and inspect the resulting output.
+
+## Conclusion
+
+The backend demonstrated successful expiry enforcement, Qloo-style matching behavior, retention API validation, public notices, and rate limiting. The in-person matching failure and outstanding security and verification checks must be addressed before the entire test suite can be considered complete.
