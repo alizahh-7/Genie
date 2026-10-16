@@ -25,6 +25,8 @@ def get_conn():
 
 
 def require_person(conn, person_id):
-    row = conn.execute("select 1 from person where id = %s", (person_id,)).fetchone()
+    row = conn.execute(
+        "select 1 from person where id = %s and expires_at > now()", (person_id,)
+    ).fetchone()
     if not row:
         raise HTTPException(404, "Person not found")

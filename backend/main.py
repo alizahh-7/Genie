@@ -7,9 +7,12 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
 from db import get_conn
+from guard import install_guard
 from maintenance import purge_expired
-from routers import admin, circle, maker_portal, makers, persons, portrait, privacy, requests, wishes
-
+from routers import (
+    admin, circle, lifecycle, maker_portal, makers, matching, meta,
+    persons, portrait, privacy, requests, wishbook, wishes,
+)
 
 load_dotenv()
 
@@ -39,6 +42,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="Genie API", lifespan=lifespan)
+install_guard(app)  # added before CORS so CORS headers also cover guard responses
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
@@ -72,3 +76,9 @@ app.include_router(circle.public)
 app.include_router(maker_portal.router)
 app.include_router(requests.router)
 app.include_router(admin.router)
+app.include_router(matching.router)
+app.include_router(lifecycle.owner)
+app.include_router(lifecycle.admin_router)
+app.include_router(wishbook.owner)
+app.include_router(wishbook.public)
+app.include_router(meta.router)

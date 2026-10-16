@@ -108,13 +108,13 @@ def list_requests(person_id: UUID, wish_id: UUID):
         require_wish(conn, person_id, wish_id)
         rows = conn.execute(
             """
-            select m.maker_id, m.status, m.score, m.request_message, m.maker_note,
+            select m.maker_id, m.status, m.score, m.reasons, m.basis, m.request_message, m.maker_note,
                    m.requested_at, m.responded_at,
                    mk.name, mk.type, mk.city, mk.country, mk.is_sample, mk.verification_status,
                    case when m.status in ('accepted', 'done') then mk.contact_email end as maker_contact
             from wish_match m join wish_maker mk on mk.id = m.maker_id
             where m.wish_id = %s
-            order by m.requested_at nulls last
+            order by m.score desc nulls last, m.requested_at nulls last
             """,
             (wish_id,),
         ).fetchall()

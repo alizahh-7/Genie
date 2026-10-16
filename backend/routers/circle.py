@@ -9,7 +9,8 @@ from pydantic import BaseModel, Field, field_validator
 from db import get_conn, require_person
 
 CONSENT_NOTE = (
-    "Your answers will be seen by the family who invited you, and processed by an AI "
+    "Your answers will be seen by the family who invited you. They may appear in a "
+    "keepsake book the family can print or share, and they are processed by an AI "
     "service to understand what this person loves. You can skip any question."
 )
 
@@ -82,7 +83,7 @@ def open_circle(token: str):
             """
             select p.first_name
             from circle_invite i join person p on p.id = i.person_id
-            where i.token = %s
+            where i.token = %s and p.expires_at > now()
             """,
             (token,),
         ).fetchone()
@@ -101,7 +102,9 @@ def send_response(token: str, body: CircleResponseIn):
         raise HTTPException(400, "Consent is needed before answers can be sent")
     with get_conn() as conn:
         invite = conn.execute(
-            "select person_id from circle_invite where token = %s", (token,)
+            "select i.person_id from circle_invite i join person p on p.id = i.person_id "
+            "where i.token = %s and p.expires_at > now()",
+            (token,),
         ).fetchone()
         if not invite:
             raise HTTPException(404, "This link is not valid")
