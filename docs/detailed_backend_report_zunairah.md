@@ -160,9 +160,9 @@ Test people created during testing were deleted, and the 15 sample makers were k
 
 ## 5. Challenges
 
-1. **Database login failed** ("password authentication failed"). Cause and fix: *[add the fix in your own words, for example the corrected connection string or password]*. Lesson: with the Supabase pooler, the username includes the project reference, and the password should be letters and numbers only.
-2. **Server could not find the app** ("Could not import module main"). It was started from the wrong folder. The server must be started from the `backend` folder.
-
+1. **Database login failed** ("password authentication failed for user postgres"). Cause: the connection string in .env still had the square brackets from Supabase's template around the password, so the password sent to the database was wrong. Fix: removed the brackets so only the real password remained. Lesson: Supabase's connection string shows [YOUR-PASSWORD] as a placeholder, and the brackets must be replaced along with the words inside them.
+2. **Server could not find the app** ("Could not import module main"). Cause: uvicorn was started from the repository root, and main.py lives inside the backend folder. Fix: run cd backend first, then uvicorn main:app --reload. Lesson: the prompt should end in genie\backend> before running any backend command.
+   
 ---
 
 ## 6. Known limits
@@ -202,3 +202,182 @@ Genie works with people near the end of life, so privacy is built into the data 
 
 **For the Devpost description, How we built it:**
 FastAPI backend on a Supabase Postgres database, with a fixed contract between the API and the Qloo agent engine. Qloo responses are cached, every external call has a timeout, and failures degrade through a six-level fallback ladder instead of breaking the experience.
+
+# Backend Report Addendum, Real Wish Maker Onboarding and Email
+
+**Author:** Zunairah
+**Date of work:** Oct 15 & 16, 2026
+
+---
+
+## A. Why this was added
+
+Days 1 to 3 gave us a working backend, but the Wish Network was 15 fictional samples. A product that people anywhere in the world can use has to accept real Wish Makers (musicians, home cooks, cafes, storytellers, volunteers) without the team recruiting each one by hand. This addition turns "real Wish Maker onboarding", which the plan listed as mockup-only, into a working feature.
+
+The design goal: **anyone can apply from anywhere, the team reviews, families request, makers accept or decline, and trust and safety rules are enforced by the system, not by good intentions.**
+
+---
+
+## B. What was built
+
+### B.1 Database changes (migration `001_maker_onboarding.sql`)
+- `wish_maker` gained: `contact_email` (private), `country`, `languages`, `application_status` (pending, approved, rejected, paused, suspended), `manage_token_hash`, `conduct_accepted_at`, `listing_consent_at`, `review_note`, `applied_at`, `reviewed_at`.
+- `wish_match` gained: `request_message`, `family_contact` (private), `maker_note`, `requested_at`, `responded_at`, `concern_flagged`, `feedback_note`.
+- Match statuses extended to: suggested, requested, accepted, declined, withdrawn, done.
+- Deleting a maker now removes their matches (cascade), so a maker can fully withdraw.
+- The 15 samples became `approved` automatically.
+
+### B.2 The five parts of the feature
+
+**1. Open application (`POST /makers/apply`, `GET /makers/apply/terms`)**
+- Public form. Fields: name, what they offer, short bio (20 to 600 characters), tags (artists, dishes, styles), city, country, languages, remote availability, contact email.
+- Required: acceptance of the code of conduct (18 or older, honesty, dignity, no money or gifts or personal details requested, privacy, not a medical service, free to decline or withdraw) and consent to be listed.
+- New applicants start as `pending` and are **not visible** to families.
+- Abuse controls: hidden bot-trap field, at most 3 applications per email per day, and a cap on the size of the pending queue.
+- The response contains a private manage token, shown once.
+
+**2. Private maker page without passwords (`/maker-portal/{token}`)**
+- The token is the maker's key. Only its SHA-256 hash is stored, so a database leak does not expose working links.
+- View status and incoming requests. Update bio, tags, city, languages, and remote availability. Pause or resume. Accept or decline a request. Withdraw the profile entirely.
+- Editing bio, tags, or city sends an approved profile back to `pending` for a fresh review.
+- Rejected and suspended profiles cannot edit or respond.
+
+**3. Admin review (`/admin/makers`, `/admin/makers/{id}/review`, `/admin/concerns`)**
+- Protected by a secret `ADMIN_TOKEN` header, compared in constant time. If the token is not configured, admin access is switched off entirely.
+- Decisions: approve (with a `reference_checked` flag that sets verification to `verified`, otherwise `reviewed`), reject, or suspend.
+- Sample makers cannot be reviewed.
+
+**4. Family requests (`/persons/{id}/wishes/{wish_id}/requests` and related)**
+- Send a request with a message and an optional contact. List requests and statuses. Withdraw. Give feedback.
+- Rules enforced by the system:
+  - Only approved makers can be requested.
+  - **In-person wishes go only to `verified` makers.** Remote wishes only to makers who offer remote.
+  - A wish can have at most 3 open requests at once.
+  - A maker who declined cannot be re-requested for the same wish.
+  - **Contact details are shared only after the maker accepts.** The family sees the maker's email, and the maker sees the family's contact, only then.
+- Sample makers auto-accept with a clearly labelled "This is a sample Wish Maker" note and share no contact details, so the demo flow is complete and honest.
+
+**5. Safety loop (feedback and concern flags)**
+- After acceptance, the family can mark the wish done and optionally raise a concern.
+- A concern **suspends the maker immediately** and appears in `/admin/concerns` for review. This implements the plan's rule that makers with concerns are paused.
+
+### B.3 Privacy changes made along the way
+- The public makers list uses an explicit column list, so the contact email and the token hash can never appear in public responses.
+- Makers see only the first name of the person a request is about, and only on requests they received.
+
+---
+
+## C. Email notifications and link recovery
+
+### C.1 What email does in Genie
+Without email, a real maker would never know a request arrived unless they happened to revisit their link. Email closes that loop.
+
+| Email | Sent to | When |
+|---|---|---|
+| Application received, with the private link | Maker | On applying |
+| New application waiting | Admin (Zunairah) | On applying |
+| Approved, rejected, or paused notice | Maker | On review |
+| A family has sent you a request (no request details in the email) | Maker | On a new request |
+| Accepted or declined update | Family | When the maker replies, only if the family's contact looks like an email |
+| New private link | Maker | On "send me my link again" |
+
+### C.2 Link recovery (`POST /makers/recover`)
+Because only the token hash is stored, a lost link cannot be re-sent. Recovery generates a fresh link, replaces the old one, and emails it. It always returns the same generic response, so nobody can discover which emails are registered. It is limited to one use per 10 minutes per profile, and it does nothing unless email is configured, so a link is never rotated into the void.
+
+### C.3 Delivery choice
+Email is sent through Brevo's web API over HTTPS. Render's free web services block outbound SMTP (ports 25, 465, 587) since September 2025, so classic SMTP would fail once deployed. Sending runs in the background, so a slow or failed email never breaks the user's request. If email is not configured, every feature still works and the email step is skipped.
+
+---
+
+## D. Test evidence
+
+Run locally through the interactive API docs.
+
+| # | Check | Result |
+|---|---|---|
+| 1 | Apply as a new Wish Maker returns a maker ID and a one-time manage token | Pass |
+| 2 | Public makers list shows the 15 samples and does **not** show the pending applicant | Pass |
+| 3 | The maker's private page loads by token and shows status `pending` | Pass |
+| 4 | Admin endpoints reject a wrong admin token (401) | Pass (access control works) |
+| 5 | Request to a **pending** maker is refused (404 "Maker not found") | Pass (unapproved makers cannot be requested) |
+| 6 | A **pending** maker cannot respond to a request (403) | Pass |
+| 7 | Feedback before any accepted request is refused (409) | Pass |
+| 8 | Admin lists pending applications with the correct token. The admin sees the applicant's email, which is never public | Pass (Oct 16) |
+| 9 | Admin approves the applicant. The profile becomes `approved` and `verified`, appears first in the public list (16 makers), and the 15 samples now show their countries | Pass (Oct 16) |
+| 10 | Full request flow: the family sends a request, the maker accepts, and the maker then sees the family's contact. A repeat request to the same maker is refused (409, "A request is already in progress") | Pass (Oct 16) |
+| 11 | Request to a sample maker auto-accepts with the sample label and no contact | Pass (run by Zunairah) |
+| 12 | Concern feedback suspends the maker and lists it under admin concerns | Pass (run by Zunairah) |
+| 13 | Application without conduct acceptance returns 400; a fourth application from one email returns 429 | Pass (run by Zunairah) |
+| 14 | A fourth open request on one wish returns 429; an in-person wish to a non-verified maker returns 400 | Pass (run by Zunairah) |
+| 15 | Maker withdraws their profile; test person deleted | Pass (run by Zunairah) |
+| 16 | Email: application email arrives with a working link | Not run yet. Email stays switched off until a Brevo key is configured |
+| 17 | Email: "send me my link again" delivers a new link and the old one stops working | Not run yet, for the same reason |
+
+Note on checks 4 to 7: during the first run, the admin call used the wrong token, so the applicant was never approved. Every later step then failed exactly as designed: an unapproved maker cannot be requested, cannot respond, and cannot receive feedback. These failures are evidence that the approval gate protects families, and not bugs.
+
+---
+
+## E. Decisions and reasons
+
+| Decision | Reason |
+|---|---|
+| Tokens instead of passwords for makers, hashed in the database | No accounts to manage, no passwords to leak, and a database leak exposes nothing usable. |
+| Manual admin review before anyone is listed | Families are vulnerable. Nobody appears in matches without a human decision. |
+| Two trust levels: `reviewed` and `verified` | Remote wishes carry little risk. In-person wishes require a reference check first, as in the plan's verification rules. |
+| Contact details revealed only after acceptance | Matches the plan: no contact details until both sides agree. |
+| Edits to bio, tags, or city trigger re-review | A trusted profile cannot be silently changed into something else. |
+| Concern flag suspends immediately | Safety first. A person reviews afterwards. |
+| Sample makers auto-accept with a label | The demo shows the full flow without pretending real people replied. |
+| Email through an HTTPS API | Render's free tier blocks SMTP ports. |
+| Recovery rotates the link and always gives a generic answer | A lost link can be replaced, and email addresses cannot be probed. |
+
+---
+
+## F. Challenges (this addition)
+
+1. **Admin calls returned 401.** Cause: the maker's private token was pasted into the admin token header, so the admin check correctly refused it. Fix: use the `ADMIN_TOKEN` value from `.env`. The failures that followed (404, 403, 409) were the approval gate doing its job on an unapproved maker. On Oct 16 the full flow was re-run with the correct token, and approval, request, accept, and the contact reveal all passed.
+2. **Email on a free host.** Direct SMTP from Render's free tier is blocked, so email is sent through an HTTPS API.
+3. **Lost links.** Hashing the token means the original cannot be re-sent, which led to the recovery flow.
+
+---
+
+## G. Known limits (updated)
+
+- **Email ownership is not proven at signup.** The applicant already holds the link when they apply. The admin reference check (an email exchange during review) covers this for now. Emailing the link only, with no on-screen display, would prove ownership, at the cost of locking out anyone whose email fails.
+- **Review is manual**, with one reviewer. A partner organisation could share this later.
+- **Emails from a free email address may land in spam.** A sending domain of our own would fix this later.
+- **Email depends on Brevo's free plan limits**, which should be checked on their pricing page before launch.
+- The family notification link assumes a frontend page at `/person/{id}`, and the maker pages at `/maker/{token}` and `/maker/recover`. These must be confirmed with Alizah.
+- Sample makers have no real people behind them. They are labelled everywhere.
+
+---
+
+## H. What is next
+
+1. Configure email (Brevo) and run tests 16 and 17. Tests 1 to 15 are complete.
+2. Deploy the backend to Render, with all environment variables set (database, allowed origins, admin token, email settings, frontend URL).
+3. Alizah builds the screens: Become a Wish Maker, the maker page, link recovery, request and status on the family side.
+4. Day 4: matching function, using only approved makers, with in-person wishes limited to `verified` makers.
+5. Enrich real makers' tags with Qloo entity IDs on approval, once Umaima's `resolve()` exists.
+
+---
+
+## I. Reusable text
+
+**Devpost, "What it does" addition:**
+Genie is a living network, not a fixed demo. Musicians, home cooks, cafes, storytellers, and volunteers anywhere in the world can apply to become Wish Makers. Every application is reviewed by a person before anyone is listed. Families send a request, the maker accepts or declines, and contact details are shared only after both sides agree.
+
+**Devpost, "Safety and privacy" addition:**
+Trust is enforced in code. Makers are not visible until approved. In-person wishes are limited to makers who passed a reference check. Edits to a profile trigger a fresh review. Any family concern suspends a maker immediately. Makers manage their profile through a private link whose secret is stored only as a hash, and they can withdraw their profile and everything linked to it at any time.
+
+**README addition:**
+Wish Makers apply at `POST /makers/apply`. An admin reviews applications with the `ADMIN_TOKEN` header at `/admin/makers`. Email is optional: set `BREVO_API_KEY`, `MAIL_FROM_EMAIL`, `FRONTEND_URL`, and `ADMIN_EMAIL` to enable notifications.
+
+---
+
+## J. Commits
+
+| Commit message |
+|---|
+| `Maker onboarding: applications, admin review, maker portal, family requests, concern flags` |
+| `Email: notifications via Brevo API, link recovery, sample makers' countries` |
