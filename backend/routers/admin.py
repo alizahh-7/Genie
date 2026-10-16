@@ -2,10 +2,11 @@ import os
 import secrets
 from typing import Literal, Optional
 
-from fastapi import APIRouter, Depends, Header, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, Header, HTTPException
 from pydantic import BaseModel, Field
 
 from db import get_conn
+from mailer import review_text, send_email
 
 
 def require_admin(x_admin_token: str = Header(default="")):
@@ -42,7 +43,7 @@ def list_applications(status: str = "pending"):
 
 
 @router.post("/makers/{maker_id}/review")
-def review(maker_id: str, body: ReviewIn):
+def review(maker_id: str, body: ReviewIn, background: BackgroundTasks):
     if body.decision == "approve":
         app_status = "approved"
         ver_status = "verified" if body.reference_checked else "reviewed"
@@ -52,7 +53,9 @@ def review(maker_id: str, body: ReviewIn):
         app_status, ver_status = "suspended", None
     with get_conn() as conn:
         row = conn.execute(
-            "select is_sample, verification_status from wish_maker where id = %s", (maker_id,)
+            "select is_sample, verification_status, contact_email, name "
+            "from wish_maker where id = %s",
+            (maker_id,),
         ).fetchone()
         if not row:
             raise HTTPException(404, "Maker not found")
@@ -62,6 +65,11 @@ def review(maker_id: str, body: ReviewIn):
             "update wish_maker set application_status = %s, verification_status = %s, "
             "review_note = %s, reviewed_at = now() where id = %s",
             (app_status, ver_status or row["verification_status"], body.note, maker_id),
+        )
+    if row["contact_email"]:
+        background.add_task(
+            send_email, row["contact_email"], "An update on your Genie profile",
+            review_text(row["name"], body.decision),
         )
     return {"application_status": app_status, "verification_status": ver_status}
 

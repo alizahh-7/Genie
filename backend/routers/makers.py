@@ -1,11 +1,20 @@
+import os
 import secrets
 from typing import Literal
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, BackgroundTasks, HTTPException
 from psycopg.types.json import Jsonb
 from pydantic import BaseModel, EmailStr, Field, field_validator
 
 from db import get_conn
+from mailer import (
+    admin_new_application_text,
+    application_text,
+    frontend_url,
+    mail_enabled,
+    recovery_text,
+    send_email,
+)
 from util import clean_list, hash_token, new_token
 
 router = APIRouter(prefix="/makers", tags=["makers"])
@@ -58,13 +67,17 @@ class MakerApplication(BaseModel):
         return clean_list(v, 8, 30, "language")
 
 
+class RecoverIn(BaseModel):
+    contact_email: EmailStr
+
+
 @router.get("/apply/terms")
 def apply_terms():
     return TERMS
 
 
 @router.post("/apply")
-def apply(body: MakerApplication):
+def apply(body: MakerApplication, background: BackgroundTasks):
     if body.website.strip():
         # A bot filled the hidden field. Pretend success, store nothing.
         return {"maker_id": "pending", "manage_token": new_token(), "status": "pending"}
@@ -72,6 +85,7 @@ def apply(body: MakerApplication):
         raise HTTPException(400, "Please accept the code of conduct and the listing consent")
 
     email = body.contact_email.lower()
+    name = body.name.strip()
     with get_conn() as conn:
         recent = conn.execute(
             "select count(*) as n from wish_maker "
@@ -98,10 +112,21 @@ def apply(body: MakerApplication):
                     false, 'pending', 'pending', %s, %s, now(), now(), now())
             """,
             (
-                maker_id, body.name.strip(), body.type, body.bio.strip(),
+                maker_id, name, body.type, body.bio.strip(),
                 Jsonb(body.tags), body.city.strip(), body.country.strip(),
                 Jsonb(body.languages), body.remote_ok, email, hash_token(token),
             ),
+        )
+
+    link = f"{frontend_url()}/maker/{token}"
+    background.add_task(
+        send_email, email, "Your Genie Wish Maker application", application_text(name, link)
+    )
+    admin_email = os.environ.get("ADMIN_EMAIL")
+    if admin_email:
+        background.add_task(
+            send_email, admin_email, "New Wish Maker application",
+            admin_new_application_text(name, maker_id),
         )
     return {
         "maker_id": maker_id,
@@ -109,6 +134,33 @@ def apply(body: MakerApplication):
         "status": "pending",
         "message": "Thank you. Save your private link now. It is shown only once and is how you manage your profile.",
     }
+
+
+@router.post("/recover")
+def recover_link(body: RecoverIn, background: BackgroundTasks):
+    generic = {"message": "If this email has a Wish Maker profile, a new private link has been sent."}
+    if not mail_enabled():
+        # Never replace a link when we cannot deliver the new one.
+        return generic
+    email = body.contact_email.lower()
+    links = []
+    with get_conn() as conn:
+        rows = conn.execute(
+            "select id, name from wish_maker "
+            "where lower(contact_email) = %s and is_sample = false "
+            "and (last_recovery_at is null or last_recovery_at < now() - interval '10 minutes')",
+            (email,),
+        ).fetchall()
+        for r in rows:
+            token = new_token()
+            conn.execute(
+                "update wish_maker set manage_token_hash = %s, last_recovery_at = now() where id = %s",
+                (hash_token(token), r["id"]),
+            )
+            links.append((r["name"], f"{frontend_url()}/maker/{token}"))
+    if links:
+        background.add_task(send_email, email, "Your new Genie private link", recovery_text(links))
+    return generic
 
 
 @router.get("")

@@ -1,10 +1,11 @@
 from typing import Optional
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, BackgroundTasks, HTTPException
 from pydantic import BaseModel, Field
 
 from db import get_conn, require_person
+from mailer import request_text, send_email
 
 router = APIRouter(prefix="/persons", tags=["wish requests"])
 
@@ -35,12 +36,12 @@ def require_wish(conn, person_id, wish_id):
 
 
 @router.post("/{person_id}/wishes/{wish_id}/requests")
-def send_request(person_id: UUID, wish_id: UUID, body: RequestIn):
+def send_request(person_id: UUID, wish_id: UUID, body: RequestIn, background: BackgroundTasks):
     with get_conn() as conn:
         wish = require_wish(conn, person_id, wish_id)
         maker = conn.execute(
-            "select id, application_status, verification_status, remote_ok, is_sample "
-            "from wish_maker where id = %s",
+            "select id, name, contact_email, application_status, verification_status, "
+            "remote_ok, is_sample from wish_maker where id = %s",
             (body.maker_id,),
         ).fetchone()
         if not maker or maker["application_status"] != "approved":
@@ -92,6 +93,12 @@ def send_request(person_id: UUID, wish_id: UUID, body: RequestIn):
                 """,
                 (wish_id, body.maker_id, new_status, body.message, body.family_contact, note, is_sample),
             )
+
+    if not maker["is_sample"] and maker["contact_email"]:
+        background.add_task(
+            send_email, maker["contact_email"],
+            "A family has sent you a wish request", request_text(maker["name"]),
+        )
     return {"status": new_status}
 
 

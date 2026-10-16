@@ -1,11 +1,12 @@
 from typing import Literal, Optional
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, BackgroundTasks, HTTPException
 from psycopg.types.json import Jsonb
 from pydantic import BaseModel, Field, field_validator
 
 from db import get_conn
+from mailer import FAMILY_PATH, frontend_url, looks_like_email, reply_text, send_email
 from util import clean_list, hash_token
 
 router = APIRouter(prefix="/maker-portal", tags=["maker portal"])
@@ -115,7 +116,7 @@ def update_profile(token: str, body: PortalUpdate):
 
 
 @router.post("/{token}/requests/{wish_id}/respond")
-def respond(token: str, wish_id: UUID, body: RespondIn):
+def respond(token: str, wish_id: UUID, body: RespondIn, background: BackgroundTasks):
     with get_conn() as conn:
         maker = load_maker(conn, token)
         if maker["application_status"] != "approved":
@@ -131,6 +132,18 @@ def respond(token: str, wish_id: UUID, body: RespondIn):
             "update wish_match set status = %s, maker_note = %s, responded_at = now() "
             "where wish_id = %s and maker_id = %s",
             (new_status, body.note, wish_id, maker["id"]),
+        )
+        info = conn.execute(
+            "select m.family_contact, w.person_id from wish_match m "
+            "join wish w on w.id = m.wish_id where m.wish_id = %s and m.maker_id = %s",
+            (wish_id, maker["id"]),
+        ).fetchone()
+
+    if info and looks_like_email(info["family_contact"]):
+        link = f"{frontend_url()}{FAMILY_PATH}{info['person_id']}"
+        background.add_task(
+            send_email, info["family_contact"].strip(),
+            "An update on your wish request", reply_text(new_status, link),
         )
     return {"status": new_status}
 
