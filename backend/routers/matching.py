@@ -4,7 +4,7 @@ from fastapi import APIRouter, HTTPException, Query
 from psycopg.types.json import Jsonb
 
 from db import get_conn, require_person
-from matcher import rank_makers, select_items
+from matcher import is_eligible, rank_makers, select_items
 
 router = APIRouter(prefix="/persons", tags=["matching"])
 
@@ -47,6 +47,10 @@ def run_matching(person_id: UUID, wish_id: UUID, limit: int = Query(default=5, g
         }
 
         items = select_items(portrait, wish["source_items"])
+        eligible = [
+            m for m in makers
+            if m["id"] not in blocked and is_eligible(m, wish["mode"], person)
+        ]
         ranked = rank_makers(items, makers, wish["mode"], person, blocked=blocked, limit=limit)
 
         # Replace old suggestions. Requests already in progress are never touched.
@@ -74,5 +78,28 @@ def run_matching(person_id: UUID, wish_id: UUID, limit: int = Query(default=5, g
             "verification_status": m["verification_status"],
             "score": r["score"], "reasons": r["reasons"], "basis": r["basis"],
         })
-    message = None if matches else "No matching Wish Makers yet. Real makers can apply from anywhere."
-    return {"wish_id": str(wish_id), "matches": matches, "message": message}
+
+    if matches:
+        message = None
+    elif wish["mode"] == "in-person" and not (person["region"] or "").strip():
+        message = "Add where they live so Genie can look for in-person Wish Makers nearby."
+    elif not eligible:
+        if wish["mode"] == "in-person":
+            message = f"No verified Wish Makers near {person['region']} yet. A remote wish can reach makers anywhere."
+        else:
+            message = "No Wish Makers are offering remote wishes right now."
+    else:
+        message = "No Wish Maker matches these favorites yet. Real makers can apply from anywhere."
+
+    return {
+        "wish_id": str(wish_id),
+        "matches": matches,
+        "message": message,
+        "explain": {
+            "mode": wish["mode"],
+            "person_region": person["region"],
+            "items_used": [i["name"] for i in items],
+            "approved_makers": len(makers),
+            "eligible_makers": len(eligible),
+        },
+    }

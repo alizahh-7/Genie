@@ -138,14 +138,21 @@ def score_maker(items, maker, mode, person):
 
 
 def select_items(portrait, source_items):
-    names = set()
+    """The items a wish is about. Names that are not in the portrait are still used."""
+    wanted, seen = [], set()
     for s in source_items or []:
-        if isinstance(s, str):
-            names.add(norm(s))
-        elif isinstance(s, dict) and s.get("name"):
-            names.add(norm(s["name"]))
-    chosen = [p for p in portrait if norm(p["name"]) in names]
-    return chosen or portrait
+        name = s if isinstance(s, str) else (s.get("name") if isinstance(s, dict) else None)
+        key = norm(name)
+        if key and key not in seen:
+            seen.add(key)
+            wanted.append((key, name))
+    if not wanted:
+        return portrait  # no source items given: use the whole portrait
+    by_name = {norm(p["name"]): p for p in portrait}
+    return [
+        by_name.get(key) or {"name": name, "domain": "other", "tags": [], "confidence": 0.7}
+        for key, name in wanted
+    ]
 
 
 def rank_makers(items, makers, mode, person, blocked=frozenset(), limit=5, min_score=0.2):
