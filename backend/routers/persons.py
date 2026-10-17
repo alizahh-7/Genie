@@ -36,7 +36,9 @@ def create_person(body: PersonIn):
 @router.get("/{person_id}")
 def get_person(person_id: UUID):
     with get_conn() as conn:
-        row = conn.execute("select * from person where id = %s", (person_id,)).fetchone()
+        row = conn.execute(
+            "select * from person where id = %s and expires_at > now()", (person_id,)
+        ).fetchone()
     if not row:
         raise HTTPException(404, "Person not found")
     return row

@@ -169,26 +169,26 @@ Test people created during testing were deleted, and the 15 sample makers were k
 
 - The backend runs locally only so far. Deployment is next.
 - Free hosting sleeps when idle, so the first request after a pause is slow. We need a keep-alive or a paid instance before judging.
-- Demo personas must be exempted from the 7-day expiry (Day 8 pre-warming).
-- Expired data can remain up to an hour before the hourly purge runs.
-- Wish Makers have no Qloo entity IDs yet, because those need the Qloo key.
+- Wish Makers have no Qloo entity IDs yet. The Qloo key exists, but enrichment waits for the engine's `resolve()` and its type rules.
 - The consent note wording should be reviewed by Alizah (tone and copy).
+- *Removed, because they are now handled:* "Demo personas must be exempted from the 7-day expiry" (an admin pin endpoint exists) and "Expired data can remain up to an hour" (expired data is now unreadable at once, although the purge can lag).
 
 ---
 
 ## 7. What is next
 
-| Step | Detail |
+| Step | Status |
 |---|---|
-| Push Day 3 code to GitHub | Confirm `.env` is not in the commit |
-| Deploy backend to Render | Set environment variables, test `/health/db` and `/docs` on the live URL |
-| Send Alizah the live API URL | She needs it for the frontend, and the frontend's address must be added to the allowed origins |
-| Confirm the engine contract with Umaima | She confirms or changes the format |
-| Day 4: matching | Score portrait tags against maker tags and store results in `wish_match`, built to the contract |
-| Enrich makers with Qloo IDs | Once Umaima has the key, run each maker's tags through the engine's `resolve()` once and store the IDs |
-| Wish Book data and PDF export | Planned for Day 7 |
-| Maker accept and decline | Planned for Day 5 |
-| Demo persona pre-warming | Exempt from expiry and cache Qloo results (Day 8) |
+| Push Day 3 code to GitHub | Done |
+| Deploy backend to Render | Pending |
+| Send Alizah the live API URL | Pending, after deployment |
+| Confirm the engine contract with Umaima | Pending, with the Qloo field mapping and type rules |
+| Matching (portrait tags against maker tags, stored in `wish_match`) | Done. The in-person fix is applied and untested |
+| Enrich makers with Qloo IDs | Pending the engine's `resolve()` |
+| Wish Book data and PDF export | Done (a printable page, shared link, and compile endpoint) |
+| Maker accept and decline | Done in the backend. The screen is pending |
+| Demo persona pre-warming | The admin pin endpoint is done. Caching Qloo results is pending |
+
 
 ---
 
@@ -355,11 +355,10 @@ Note on checks 4 to 7: during the first run, the admin call used the wrong token
 ## H. What is next
 
 1. Configure email (Brevo) and run tests 16 and 17. Tests 1 to 15 are complete.
-2. Deploy the backend to Render, with all environment variables set (database, allowed origins, admin token, email settings, frontend URL).
-3. Alizah builds the screens: Become a Wish Maker, the maker page, link recovery, request and status on the family side.
-4. Day 4: matching function, using only approved makers, with in-person wishes limited to `verified` makers.
-5. Enrich real makers' tags with Qloo entity IDs on approval, once Umaima's `resolve()` exists.
-
+2. Deploy the backend to Render, with all environment variables set (database, allowed origins, admin token, email settings, frontend URL, Qloo key).
+3. Alizah builds the screens: Become a Wish Maker, the maker page, link recovery, request and status on the family side, matches, the Wish Book, and the retention choice.
+4. Matching is built and tested (Section B above), with in-person wishes limited to verified, local makers.
+5. Enrich real makers' tags with Qloo entity IDs once `resolve()` exists, following the type rules in Section D.
 ---
 
 ## I. Reusable text
@@ -374,10 +373,221 @@ Trust is enforced in code. Makers are not visible until approved. In-person wish
 Wish Makers apply at `POST /makers/apply`. An admin reviews applications with the `ADMIN_TOKEN` header at `/admin/makers`. Email is optional: set `BREVO_API_KEY`, `MAIL_FROM_EMAIL`, `FRONTEND_URL`, and `ADMIN_EMAIL` to enable notifications.
 
 ---
+# Genie — Backend Testing Report on rest of the features
+### date: 17-10-2026
+## Overview
 
-## J. Commits
+The Genie backend was tested for expiry enforcement, Wish Maker matching, retention controls, Wish Circle and Wish Book functionality, public notices, API rate limiting, and repository secret exposure.
 
-| Commit message |
-|---|
-| `Maker onboarding: applications, admin review, maker portal, family requests, concern flags` |
-| `Email: notifications via Brevo API, link recovery, sample makers' countries` |
+**Testing environment:** Local FastAPI server, Supabase database, Swagger UI, PowerShell, and Supabase SQL Editor.
+
+## Test Results
+
+| No. | Test | Result | Observations |
+|---|---|---|---|
+| 1 | Expiry at read time | PASS | A manually expired person returned HTTP 404 on read (18:09 GMT), and deletion then returned HTTP 200 (18:11 GMT). |
+| 2 | Text-based matching (remote wish, Mohammed Rafi) | NOT VERIFIED | The person, portrait, and wish were created, but the matching response was not saved. |
+| 3 | Qloo-style matching | PASS | The stored suggestion for Meera Rao (`m01`) shows score `0.532`, `basis: qloo`, and the reasons "Shared taste: classic bollywood" and "Offers remote wishes". The temporary tag on `m01` was hand-made test data. *Confirm it was reset to `[]`.* |
+| 4 | In-person matching (haleem, Hyderabad) | FAIL, ROOT CAUSE FOUND | The first run returned no matches. The cause is in Section C below. A fix was applied on Oct 17 and has **not** been re-tested. |
+| 5 | Stored match suggestions | PASS FOR FIELDS | The list for the Lag Jaa Gale wish returned `status`, `score`, `reasons`, `basis`, and the maker's name, type, city, country, and verification status. The maker's contact was `null`, as designed. Only one row existed, so ordering across several makers was not exercised. |
+| 6 | Retention and administrative pinning | PASS | Retention of 5 days returned HTTP 422 with "Choose one of [7, 30, 90, 365] days". Pinning returned HTTP 200 with `expires_at` of 2031-10-16, exactly five years ahead, read back from the database. The 30-day retention call returned HTTP 200 (reported; its output was not kept). |
+| 7 | Wish Circle and Wish Book | PARTLY VERIFIED | A Circle answer containing `<script>alert(1)</script>` was saved (200). Compile, retrieve, and share all returned HTTP 200, and share returned a token. In the compiled data the script text is stored as plain text. **Not verified:** the printed page showing it as text, Save as PDF, and the revoked link returning 404. |
+| 8 | Public notices | PASS | `/meta/notices` returned the disclaimer, sample label, source labels, match-basis labels, verification plan, privacy points, retention options (7, 30, 90, 365), and maker status messages. |
+| 9 | Rate limiting and security headers | PASS | Of 310 requests, 300 returned HTTP 200 and 10 returned HTTP 429. Every response in the Swagger output carries `cache-control: no-store`, `referrer-policy: no-referrer`, and `x-content-type-options: nosniff`. |
+| 10 | Git secret exposure | PENDING | `git ls-files backend/.env` and `git log --all --oneline -- backend/.env` must both print nothing. *Confirm.* |
+
+## Additional Qloo Probe
+
+Two probe runs against the Qloo hackathon API all returned HTTP 200 with 20 results per query. The first run (14 queries) showed names only. The second run (8 queries) also showed each result's entity type and number of tags. A successful call is not proof of the right answer: the findings in Section D show that songs and dishes do not resolve to what a family means.
+
+## Issues
+
+1. In-person matching: root cause identified, fix applied, re-test pending.
+2. The exact response for text-based matching was not preserved.
+3. Stored suggestions were checked for fields but not for ordering across several makers.
+4. Script-like text on the printed Wish Book page, Save as PDF, and the revoked share link are not yet verified.
+5. The temporary Qloo tag on maker `m01` must be confirmed as reset.
+7. Qloo has no entities for songs or dishes (Section D). The engine must handle this.
+8. Tag-overlap scoring has only been tested with hand-made tags. Real Qloo entities carry 40 to 170 tags each, so the scoring needs calibrating on real data.
+
+## Conclusion
+
+The backend demonstrated expiry enforcement at read time, stored and explained match suggestions, retention validation, administrative pinning, public notices, rate limiting, and security headers. The in-person matching failure was traced to a replaced portrait and an unhelpful fallback, and a fix is applied but untested. The Qloo probes showed that artists and places resolve well, while songs and dishes are not Qloo entities, so the engine must resolve by entity type and fall back from a song to its artist. The remaining checks (printed-page safety, share revocation, secret exposure) and the re-test of the in-person fix belong in the final judge test.
+
+# Part 2: New sections to add
+
+## A. Audit before building further (Oct 16 and 17)
+
+Before adding features, the existing code was checked against the route list of the running API, so nothing was built twice.
+
+| Feature | Already existed | Decision |
+|---|---|---|
+| Delete everything | `DELETE /persons/{id}`, cascading through every linked table | Kept, not rebuilt |
+| 7-day expiry | An expiry date on every person and an hourly purge | Kept, one gap fixed |
+| Maker accept and decline | Maker page, request, withdraw, and feedback endpoints | Kept. Only the screen remains |
+| Safety workflow | Approval gate, verified-only in-person wishes, concern suspension, hashed tokens | Kept |
+| Matching | The match table had a score column and a `suggested` status, but nothing wrote them | Built |
+| Wish Book | A `wish_book` table with no endpoints | Built |
+| Disclaimer and verification text | Not in the API | Built (one shared file) |
+| Rate limiting | Only a per-email application limit | Built |
+
+**Gaps found and fixed**
+1. **Expired people stayed readable until the hourly purge ran.** Expiry is now enforced at read time, in every person-level endpoint and in the Wish Circle links.
+2. **A 7-day expiry would delete the Wish Book keepsake.** Retention is now a choice (7, 30, 90, or 365 days), and it only edits the existing expiry date, so the purge and delete code were not changed.
+3. **The consent note did not mention the keepsake.** A shared Wish Book can include a family member's answers, so the note now says answers may appear in a keepsake the family can print or share.
+
+## B. Matching, retention, Wish Book, notices, and rate limiting
+
+### B.1 Matching (`POST /persons/{id}/wishes/{wish_id}/match`)
+
+**Which makers are considered**
+- Only `approved` makers, excluding any maker who already declined this wish.
+- **Remote wishes:** only makers who offer remote wishes. Location is ignored, which is what makes the network worldwide.
+- **In-person wishes:** only makers who are `verified` (or labelled samples) and whose city matches the person's region.
+
+**How a maker is scored.** For each item the wish is about, the strongest available signal is used:
+
+| Signal | Strength | Basis label |
+|---|---|---|
+| The maker's Qloo entity is the same as the item's | 1.0 | `qloo` |
+| Shared Qloo taste tags | 0.35 to 0.7, by overlap | `qloo` |
+| Exact name match with one of the maker's own tags | 0.8 | `text` |
+| One of the item's tags matches a maker's own tag | 0.5 | `text` |
+| Partial word overlap | 0.4 | `text` |
+
+- Each item's strength is weighted by its confidence.
+- The score blends the best item (70 percent) with the average of the top three (30 percent), multiplied by 0.85.
+- Small bonuses: +0.08 if the maker's type fits the kind of wish, +0.05 for a shared language, +0.05 for a verified maker, and +0.05 for a local maker on an in-person wish.
+- Makers below 0.2 are not suggested, and a maker with no overlap at all is never suggested.
+- Every stored suggestion carries plain-language **reasons** and a **basis**, so the interface can say honestly whether a match came through Qloo's taste graph or only from matching names.
+- A new run replaces the old suggestions and never touches requests already in progress.
+- Text matching only finds literal overlap. Qloo's links are what can connect related things, which gives a clean evaluation: text-only matching against Qloo-assisted matching.
+
+### B.2 Expiry and retention
+- `PATCH /persons/{id}/retention` lets a family choose 7, 30, 90, or 365 days. Other values are refused.
+- `POST /admin/persons/{id}/pin` keeps a demo persona alive for five years (admin only). This replaces the earlier "demo personas must be exempted" limit.
+
+### B.3 Wish Book
+- **Compile** builds the book from the portrait, wishes, accepted makers, and (optionally) family voices. The result has a title, tagline, person details, portrait items with their labels, themes, "what we learned" lines, wishes with their makers, family voices, the medical notice, and a timestamp.
+- **Nothing is invented.** A theme appears in "what we learned" only when it occurs in at least two portrait items. In the test output a theme with a count of 1 produced no line, and only the family's memory appeared.
+- **Sharing** is opt-in and revocable. The shared page contains no person ID.
+- **Print or save as PDF** is a printable web page. A server-built PDF with standard fonts cannot show Telugu, Hindi, Arabic, or Korean text, while the browser's print dialog handles every script.
+- **Safe rendering:** all text is escaped before it reaches the page, and the page carries no-index, no-referrer, and restrictive content-security headers.
+- Maker contact details are never included. Sample makers are marked "(sample)".
+
+### B.4 Shared notices (`GET /meta/notices`)
+The medical disclaimer, sample label, verification plan, privacy points, source labels, match-basis labels, retention options, and maker status messages live in one place. The frontend loads them from here, so the wording is reviewed once.
+
+### B.5 Rate limiting and headers
+Per IP address: applications 5 per hour, link recovery 5 per hour, Circle submissions 40 per hour, new people 30 per hour, and everything else 300 per minute. Every response carries no-store, no-referrer, and no-sniff headers.
+
+## C. In-person matching failure: root cause and fix
+
+**Symptom.** A wish in in-person mode with the source item "haleem", for a person in Hyderabad, returned no matches, although the sample maker Zainab Siddiqui (Hyderabad, tag "haleem") exists.
+
+**What the outputs ruled out**
+- The wish mode was `in-person` and the person's region was Hyderabad.
+- Maker `m03` was approved, listed publicly, in Hyderabad, and a sample (`remote_ok: false`, as expected for an in-person maker).
+
+**What the outputs showed**
+- 18:20 GMT: a portrait was saved with one item, "Lag Jaa Gale". Saving a portrait replaces all earlier items, so "Mohammed Rafi" and "haleem" were removed.
+- 18:26 GMT: the in-person haleem wish was created.
+- 18:31 GMT: matching returned an empty list with the old message and no explanation.
+- 18:47 GMT: the compiled Wish Book lists only "Lag Jaa Gale" in the portrait. No later portrait save appears in the logged calls.
+
+**Root cause (supported by the logged outputs).** The portrait no longer contained "haleem". The old code then fell back to matching against the whole portrait, which had nothing in common with Zainab Siddiqui, so the result was empty and gave no reason.
+
+**Fix (two files)**
+- `matcher.py`: a wish's own source items are always used for matching, even when they are not in the portrait. When the names are found, remote and Qloo-style matching behave exactly as before.
+- `routers/matching.py`: an empty result now explains itself (for example "Add where they live so Genie can look for in-person Wish Makers nearby"), and the response carries an `explain` block with the mode, region, items used, and the numbers of approved and eligible makers.
+
+**Status.** Applied on Oct 17. Not re-tested. The re-check is part of the final judge test.
+
+## D. Qloo integration findings (Oct 17)
+
+### D.1 Setup
+The Qloo hackathon key is stored only in `.env`. The search path, the key header, and the `results` field are confirmed by the successful probe calls.
+
+### D.2 Second probe: entity types and tag counts
+
+| Query | Top results (name, type, number of tags) | Reading |
+|---|---|---|
+| Lag Jaa Gale | A film (4 tags), another film (88), then hotels and a mall | The song is not an entity |
+| Lag Jaa Gale Lata Mangeshkar | A film, Lata Mangeshkar as a person (58) and as an **artist (43)**, an album (0), a place | The artist appears once the singer is named |
+| Ghantasala | A college (place), a film, **Ghantasala as an artist (42)**, two places | The singer exists, but ranks third |
+| Ghantasala singer | Authors named Singer, a place, a film | Adding words to the query makes results worse |
+| haleem | Five restaurants (places) | The dish is not an entity |
+| Hyderabadi cuisine | A place named "Hyderabadi cuisine" (6 tags), then restaurants | No cuisine entity seen |
+| Charminar | Two places (123 and 80 tags), a restaurant, a locality (0), a restaurant | The landmark is found as a place |
+| Irani chai | A **film** (56), then cafes | The drink is not an entity, and a film shares its name |
+
+**Entity types seen:** movie, place, person, artist, album, author, locality.
+
+### D.3 What this means
+1. **Songs are not entities.** A song resolves only through its artist, so the artist must be named by the family or inferred (and then labelled as "likely", with lower confidence).
+2. **Dishes and drinks are not entities.** They resolve only to restaurants and cafes. A restaurant must not be stored as if it were the dish. Dish items should stay at the name level and be labelled honestly (matches through them show `basis: text`).
+3. **Results must be chosen by type.** Picking the first result whose `types` contains the wanted type works today without any extra parameter: artist for music, place for food and places, movie for film. Prefer `artist` over `person` when both appear, as with Lata Mangeshkar.
+4. **Do not add descriptive words to a query.** "Ghantasala singer" returned authors.
+5. **Entities carry many tags:** artists 42 to 58, places 80 to 170. Our tag-overlap scoring has only been tested with hand-made tags. Real entities will share many broad tags, so before relying on tag overlap it needs calibrating on real data (a minimum number of shared tags, and less weight for very common tags). Until then, a match on the **same entity** is the most trustworthy Qloo signal.
+6. **Definition of "resolved".** The coverage test's 70 percent pass mark should count a query only if it returns the right entity of the right type. By that rule, 8 of 8 artist queries resolve (artist type confirmed directly for Lata Mangeshkar and Ghantasala, the others judged by name), while 0 of 1 songs and 0 of 5 dish or cuisine queries resolve as what a family means.
+7. **Telugu coverage:** the singer Ghantasala exists as an artist, which is encouraging for the Hyderabad persona. Only one Telugu query has been tested.
+8. **Wish Book risk:** the themes come from Qloo tags, so a song resolved to the wrong entity would produce wrong themes (for example "Romance" and "Drama" from a film).
+
+### D.4 Field mapping for the engine contract
+- `results[].entity_id` becomes `entity.id`, kept exactly as given.
+- `results[].name` becomes `entity.name`.
+- `results[].types[0]` (for example `urn:entity:artist`) becomes `entity.type`.
+- `results[].tags[].tag_id` becomes `tags[].id`, and `results[].tags[].name` becomes `tags[].name`.
+
+### D.5 What follows
+- The plan's fallback ladder fits the findings: a song falls back to its artist, and a dish falls back to a name-level item.
+- `enrich_makers.py` is written to attach Qloo entities and tags to makers. It waits for the engine's `resolve()`, and it must follow the rules above, so that tags like "haleem" are not turned into restaurant entities.
+
+## E. Decisions (new)
+
+| Decision | Reason |
+|---|---|
+| Matches show their basis (`qloo` or `text`) | The project must visibly depend on Qloo, and honesty means saying when a match did not come from it. |
+| Remote wishes ignore location | Recorded songs, messages, and recipes work from anywhere, which is what makes Genie worldwide. |
+| In-person wishes need a verified, local maker | Safety first, as in the verification plan. |
+| A wish's own items are always matched | A silent fallback to the whole portrait can match a wish against unrelated items. |
+| Printable page instead of a server PDF | Font coverage for every language. |
+| Retention is the family's choice | A keepsake must outlast a demo's seven days. |
+| All safety text in one shared file | One review and one source of truth. |
+| Qloo results are chosen by entity type | A name match alone returned a film for a song and a film for a drink. |
+
+## F. Challenges (new)
+1. **In-person matching returned no candidates.** Cause: a portrait save replaced the items, and the old fallback matched against unrelated items. Fix: always match a wish's own items, and explain empty results.
+2. **Qloo does not have entities for songs or dishes.** Found through the probes. The engine resolves by type and falls back from songs to artists.
+3. **The admin token appeared in pasted screenshots.** The local token is low risk, but it must be rotated before deployment, and screenshots for Devpost must not show it.
+
+## G. Known limits (new)
+- The purge runs inside the server process. If a free host sleeps, expired data stays stored until the server wakes, although it is no longer readable.
+- Emails already sent cannot be recalled when a family deletes their data.
+- Text matching only finds literal overlap. Tag-based matching needs calibration on real Qloo tags before it is trusted.
+- The rate limiter keeps its counts in memory, so it resets on restart and covers one server instance.
+- The in-person rule compares a maker's city with the person's region text, so both must be spelled sensibly.
+- Songs and dishes cannot be resolved directly in Qloo (Section D).
+
+## H. What remains
+1. **Engine endpoints:** one that takes quick facts and Circle answers, calls the engine to build the portrait, saves it, and returns the Qloo call log, and one that generates wishes. Reaction Mode needs an endpoint that records reactions. These wait for Umaima's module path and function signatures.
+2. Update `docs/engine-contract.md` with the field mapping and type rules (Section D), and run `enrich_makers.py` once `resolve()` exists.
+3. Calibrate tag-based matching on real enriched makers.
+4. **Deployment** to Render, with every environment variable and the frontend address in the allowed origins.
+5. Hand Alizah the screen list, and decide who builds the maker accept and decline page.
+6. README setup steps, license check in the About panel, and the Devpost description.
+7. Rotate the admin token, then pin the demo personas.
+8. Final judge test with 10 varied people, including: the in-person fix, the printed page showing script text as plain text, Save as PDF, the revoked link returning 404, the secret checks, and the reset of the test tag on `m01`.
+9. Optional: configure Brevo and run the two email tests.
+10. Submit by Oct 29.
+
+## I. Reusable text (new)
+
+**Devpost, "How it is Qloo-powered" (matching):**
+Every match is explained and honest. Genie scores each Wish Maker against the specific items a wish is about, using Qloo's entity and taste-tag links where they exist, and falling back to plain name matching only when they do not. Each match is labelled with which of the two produced it, so a judge or a family always knows how much of the result came from Qloo's taste graph.
+
+**Devpost, "Challenges":**
+Qloo's search mixes entity types, and it has entities for artists and places but not for individual songs or dishes. Genie therefore chooses results by type, moves from a song to its artist, and labels anything it could not resolve instead of hiding it.
+
+**Devpost, "Safety and privacy" (addition):**
+A family's data expires automatically, and they choose how long it stays. Expired data is unreadable immediately, deletion removes everything linked to a person in one step, and shared keepsakes can be switched off at any time. Every page that shows user text escapes it, and sensitive endpoints are rate limited.
