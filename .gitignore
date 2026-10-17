@@ -8,3 +8,5 @@ node_modules/
 .DS_Store
 _coverage/
 _cache/
+backend/engine/_*
+backend/engine/_nani_portrait.json

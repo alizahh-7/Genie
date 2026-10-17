@@ -39,7 +39,7 @@ def _age_bracket(birth_year):
 def _naive_split(text):
     import re
     parts = re.split(r"[,;\n]| and ", text or "")
-    return [p.strip(" .") for p in parts if 1 < len(p.strip()) <= 60][:6]
+    return [p.strip(" .") for p in parts if 1 < len(p.strip()) <= 40 and len(p.split()) <= 5][:6]  # short names only: sentences are not names
 
 
 def _collect(inputs):

@@ -13,7 +13,7 @@ ACCEPT = 0.85
 TYPES = {
     "music": ["urn:entity:artist"],
     "film": ["urn:entity:movie", "urn:entity:tv_show"],
-    "place": ["urn:entity:place", "urn:entity:destination"],
+    "place": ["urn:entity:place", "urn:entity:destination", "urn:entity:locality"],
 }
 
 # Seed knowledge for known misses and for songs (Qloo has artists, not songs). The LLM covers the rest.
@@ -27,6 +27,7 @@ PARENTS = {
     "lagjaagale": ["Lata Mangeshkar"],
     "whythiskolaveridi": ["Anirudh Ravichander", "Dhanush"],
     "hotelcalifornia": ["Eagles"],
+    "tirupati": ["Tirumala Venkateswara Temple", "Tirupati Balaji Temple"],
 }
 
 
@@ -83,15 +84,35 @@ def resolve(name, domain, hint=None, client=None, region="", language="", use_ll
         return _miss(name, domain, 6)
 
 
+def _via_parents(client, domain, parents):
+    """Try each parent query. Returns (hit, kind, via, err)."""
+    for p in parents:
+        hit, kind, err = _search(client, p, domain)
+        if hit:
+            return hit, kind, p, None
+        if err and err != "no results":
+            return None, None, None, err
+    return None, None, None, None
+
+
 def _resolve(client, name, domain, hint, region, language, use_llm):
     if domain not in ("music", "food", "place", "film"):
         return _miss(name, domain, 5)
     key = compact(name)
+    parents = ([hint] if hint else []) + list(PARENTS.get(key, []))
 
     # level 1: exact
     hit, kind, err = _search(client, name, domain)
     if hit:
-        return _result(name, domain, hit, kind, 1)
+        res = _result(name, domain, hit, kind, 1)
+        # a 'thin' exact hit (under 3 usable tags) is usually a tribute act or a namesake,
+        # e.g. an artist literally called "Hotel California". Prefer the known parent if we have one.
+        if kind == "tag" or len(res["tags"]) >= 3 or not parents:
+            return res
+        phit, pkind, via, perr = _via_parents(client, domain, parents)
+        if phit:
+            return _result(name, domain, phit, pkind, 3, via=via)
+        return res
     if err and err != "no results":
         return _miss(name, domain, 6)  # API down or timeout
 
@@ -108,15 +129,13 @@ def _resolve(client, name, domain, hint, region, language, use_llm):
             return _miss(name, domain, 6)
 
     # level 3: move up (song -> artist, dish -> cuisine, spot -> city)
-    parents = ([hint] if hint else []) + list(PARENTS.get(key, []))
     if suggestion and suggestion.get("parent"):
         parents.append(suggestion["parent"])
-    for p in parents:
-        hit, kind, err = _search(client, p, domain)
-        if hit:
-            return _result(name, domain, hit, kind, 3, via=p)
-        if err and err != "no results":
-            return _miss(name, domain, 6)
+    phit, pkind, via, perr = _via_parents(client, domain, parents)
+    if phit:
+        return _result(name, domain, phit, pkind, 3, via=via)
+    if perr:
+        return _miss(name, domain, 6)
 
     # level 5: Qloo has nothing useful. Shown honestly, excluded from Qloo scoring.
     return _miss(name, domain, 5)
