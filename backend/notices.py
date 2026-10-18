@@ -11,6 +11,7 @@ SOURCE_LABELS = {
 MATCH_BASIS_LABELS = {
     "qloo": "Matched through Qloo's taste graph",
     "text": "Matched by name, not through Qloo's taste graph",
+    "type": "Suggested for what they offer. No shared favorites found yet",
 }
 
 VERIFICATION_PLAN = [
@@ -28,6 +29,7 @@ PRIVACY_POINTS = [
     "There are no accounts. Your private link is the key, so keep it safe.",
     "You can delete everything at any time, and data is removed automatically when its retention period ends.",
     "A shared Wish Book can be switched off whenever you like.",
+    "Answers you type are sent to a third-party AI service only to pick out the names of songs, dishes, and places.",
 ]
 
 RETENTION_OPTIONS = (7, 30, 90, 365)

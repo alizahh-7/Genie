@@ -1,105 +1,225 @@
-"""POST /agent/run: stateless. Runs the Genie engine for one person and returns portrait items, wishes,
-visible steps, the Qloo call log and timings. Nothing is stored. Written by Umaima (engine owner)."""
-from typing import Dict, List, Literal, Optional
+import concurrent.futures
+import time
+from typing import Literal, Optional
+from uuid import UUID
 
 from fastapi import APIRouter, HTTPException
+from psycopg.types.json import Jsonb
 from pydantic import BaseModel, Field
-from engine import run_agent, pick_reaction_cards, apply_reactions
-from engine import run_agent
 
-router = APIRouter(tags=["agent"])
+from db import get_conn, require_person
+from routers.matching import WISH_COLS, load_context, match_one
+from routers.portrait import PortraitItemIn, replace_portrait
+from routers.wishes import WishIn, insert_wish
+
+router = APIRouter(prefix="/persons", tags=["agent"])
+
+_pool = concurrent.futures.ThreadPoolExecutor(max_workers=4)
+ENGINE_TIMEOUT = 40  # seconds per engine call
 
 
-class PersonIn(BaseModel):
-    first_name: str = Field("", max_length=40)
-    birth_year: Optional[int] = Field(None, ge=1900, le=2026)
-    region: str = Field("", max_length=80)
-    language: str = Field("", max_length=40)
-
-
-class FactIn(BaseModel):
+class QuickFact(BaseModel):
     domain: Literal["music", "food", "place", "film", "other"]
-    name: str = Field(..., min_length=1, max_length=80)
-    hint: Optional[str] = Field(None, max_length=80)
+    name: str = Field(min_length=1, max_length=200)
+    hint: Optional[str] = Field(default=None, max_length=100)
 
 
-class CircleIn(BaseModel):
-    contributor: str = Field("", max_length=40)
-    answers: Dict[str, str] = Field(default_factory=dict)
+class BuildIn(BaseModel):
+    quick_facts: list[QuickFact] = Field(default_factory=list, max_length=30)
 
 
-class AgentIn(BaseModel):
-    person: PersonIn
-    quick_facts: List[FactIn] = Field(default_factory=list)
-    circle_answers: List[CircleIn] = Field(default_factory=list)
+def load_engine():
+    try:
+        import engine
+    except Exception:
+        raise HTTPException(503, "Genie's agent is not available on this server")
+    return engine
 
 
-@router.post("/agent/run")
-def agent_run(body: AgentIn):
-    if len(body.quick_facts) > 20 or len(body.circle_answers) > 25:
-        raise HTTPException(status_code=422, detail="Too many items. Send up to 20 favourites and 25 circle answers.")
-    person = {"first_name": body.person.first_name.strip(), "birth_year": body.person.birth_year,
-              "region": body.person.region.strip(), "language": body.person.language.strip()}
+def run_engine(fn, *args):
+    future = _pool.submit(fn, *args)
+    try:
+        return future.result(timeout=ENGINE_TIMEOUT)
+    except concurrent.futures.TimeoutError:
+        raise HTTPException(504, "This is taking longer than expected. Please try again in a moment.")
+    except Exception:
+        raise HTTPException(502, "Something went wrong while gathering their story. Please try again.")
+
+
+def elapsed_ms(start) -> int:
+    return int((time.monotonic() - start) * 1000)
+
+
+def person_dict(conn, person_id) -> dict:
+    row = conn.execute(
+        "select first_name, birth_year, region, language from person where id = %s", (person_id,)
+    ).fetchone()
+    return dict(row)
+
+
+def read_build_inputs(person_id, body):
+    with get_conn() as conn:  # released before the slow engine call
+        require_person(conn, person_id)
+        person = person_dict(conn, person_id)
+        circle = conn.execute(
+            "select contributor_first_name, answers from circle_response "
+            "where person_id = %s order by created_at",
+            (person_id,),
+        ).fetchall()
     inputs = {
-        "quick_facts": [{"domain": f.domain, "name": f.name.strip(), "hint": f.hint} for f in body.quick_facts],
-        "circle_answers": [{"contributor": c.contributor,
-                            "answers": {str(k)[:40]: str(v)[:500] for k, v in list(c.answers.items())[:8]}}
-                           for c in body.circle_answers],
+        "quick_facts": [q.model_dump(exclude_none=True) for q in body.quick_facts],
+        "circle_answers": [
+            {"contributor": c["contributor_first_name"], "answers": c["answers"]} for c in circle
+        ],
     }
-    # a plain `def` endpoint runs in FastAPI's thread pool, so the engine never blocks the server
-    return run_agent(person, inputs)
-
-class ItemIn(BaseModel):
-    domain: str = Field(..., max_length=20)
-    name: str = Field(..., min_length=1, max_length=80)
-    qloo_entity_id: Optional[str] = Field(None, max_length=80)
-    tags: List[dict] = Field(default_factory=list)
-    source_label: Literal["told", "likely", "reacted", "ai-only"]
-    confidence: float = Field(0.5, ge=0, le=1)
-    resolution_level: int = Field(6, ge=1, le=6)
-    matched_name: Optional[str] = Field(None, max_length=80)
+    return person, inputs
 
 
-class ReactionIn(BaseModel):
-    name: str = Field(..., min_length=1, max_length=80)
-    domain: Optional[str] = Field(None, max_length=20)
-    reaction: Literal["lit_up", "no_reaction"]
+def store_portrait(person_id, result) -> int:
+    items = []
+    for raw in result.get("items") or []:
+        try:
+            items.append(PortraitItemIn(**raw))
+        except Exception:
+            continue  # skip an item the database would not accept
+    with get_conn() as conn:
+        require_person(conn, person_id)
+        saved = replace_portrait(conn, person_id, items)
+        conn.execute(
+            "insert into agent_log (person_id, step, log) values (%s, 'portrait', %s)",
+            (person_id, Jsonb(result.get("qloo_log") or [])),
+        )
+    return saved
 
 
-class CardsIn(BaseModel):
-    items: List[ItemIn]
-    tried: List[str] = Field(default_factory=list)
-    n: int = Field(4, ge=1, le=5)
+def read_portrait(person_id):
+    with get_conn() as conn:
+        require_person(conn, person_id)
+        person = person_dict(conn, person_id)
+        rows = conn.execute(
+            """
+            select domain, name, qloo_entity_id, qloo_tags as tags, source_label,
+                   confidence, resolution_level, matched_name
+            from portrait_item where person_id = %s order by created_at, name
+            """,
+            (person_id,),
+        ).fetchall()
+    return person, [dict(r) for r in rows]
 
 
-class ReactionsIn(BaseModel):
-    person: PersonIn
-    items: List[ItemIn]
-    reactions: List[ReactionIn]
-    tried: List[str] = Field(default_factory=list)
+def store_wishes(person_id, result):
+    wishes = []
+    for raw in result.get("wishes") or []:
+        try:
+            wishes.append(WishIn(**raw))
+        except Exception:
+            continue
+    with get_conn() as conn:
+        require_person(conn, person_id)
+        # Replace earlier generated wishes, but keep any wish that already has a request in progress.
+        conn.execute(
+            """
+            delete from wish w
+            where w.person_id = %s and w.kind is not null
+              and not exists (
+                select 1 from wish_match m
+                where m.wish_id = w.id and m.status in ('requested', 'accepted', 'done')
+              )
+            """,
+            (person_id,),
+        )
+        saved = [insert_wish(conn, person_id, w) for w in wishes]
+        conn.execute(
+            "insert into agent_log (person_id, step, log) values (%s, 'wishes', %s)",
+            (person_id, Jsonb(result.get("qloo_log") or [])),
+        )
+    return saved
 
 
-def _dump(m):
-    return m.model_dump() if hasattr(m, "model_dump") else m.dict()
+@router.post("/{person_id}/portrait/build")
+def build_person_portrait(person_id: UUID, body: BuildIn):
+    engine = load_engine()
+    person, inputs = read_build_inputs(person_id, body)
+    result = run_engine(engine.build_portrait, person, inputs) or {}
+    saved = store_portrait(person_id, result)
+    return {
+        "saved": saved,
+        "items": result.get("items") or [],
+        "qloo_log": result.get("qloo_log") or [],
+    }
 
 
-def _limits(items, tried, reactions=()):
-    if len(items) > 60 or len(tried) > 60 or len(reactions) > 10 or any(len(i.tags) > 40 for i in items):
-        raise HTTPException(status_code=422, detail="Too many items.")
+@router.post("/{person_id}/wishes/generate")
+def generate_person_wishes(person_id: UUID):
+    engine = load_engine()
+    person, rows = read_portrait(person_id)
+    if not rows:
+        raise HTTPException(409, "Build the Taste Portrait before generating wishes")
+    result = run_engine(engine.generate_wishes, rows, person) or {}
+    saved = store_wishes(person_id, result)
+    return {
+        "wishes": saved,
+        "follow_up": result.get("follow_up"),
+        "qloo_log": result.get("qloo_log") or [],
+    }
 
 
-@router.post("/agent/reaction-cards")
-def reaction_cards(body: CardsIn):
-    """Which items to show next in Reaction Mode. Stateless: the caller sends the portrait and what was tried."""
-    _limits(body.items, body.tried)
-    return pick_reaction_cards([_dump(i) for i in body.items], [t[:80] for t in body.tried], body.n)
+@router.post("/{person_id}/agent/run")
+def run_whole_agent(person_id: UUID, body: BuildIn):
+    """Portrait, then wishes, then matching, in one call, with steps and timings."""
+    engine = load_engine()
+    started = time.monotonic()
+    steps, timings, qloo_log = [], {}, []
+
+    t = time.monotonic()
+    person, inputs = read_build_inputs(person_id, body)
+    portrait_result = run_engine(engine.build_portrait, person, inputs) or {}
+    saved_items = store_portrait(person_id, portrait_result)
+    timings["portrait"] = elapsed_ms(t)
+    steps.append({"name": "portrait", "status": "ok", "ms": timings["portrait"], "items": saved_items})
+    qloo_log += portrait_result.get("qloo_log") or []
+
+    wishes, matches, follow_up = [], [], None
+    if saved_items:
+        t = time.monotonic()
+        person, rows = read_portrait(person_id)
+        wishes_result = run_engine(engine.generate_wishes, rows, person) or {}
+        wishes = store_wishes(person_id, wishes_result)
+        follow_up = wishes_result.get("follow_up")
+        timings["wishes"] = elapsed_ms(t)
+        steps.append({"name": "wishes", "status": "ok", "ms": timings["wishes"], "wishes": len(wishes)})
+        qloo_log += wishes_result.get("qloo_log") or []
+
+        t = time.monotonic()
+        with get_conn() as conn:
+            person_row, portrait_rows, makers = load_context(conn, person_id)
+            wish_rows = conn.execute(
+                f"select {WISH_COLS} from wish where person_id = %s order by created_at", (person_id,)
+            ).fetchall()
+            matches = [match_one(conn, person_row, w, portrait_rows, makers, 5) for w in wish_rows]
+        timings["matching"] = elapsed_ms(t)
+        steps.append({"name": "matching", "status": "ok", "ms": timings["matching"], "wishes": len(matches)})
+    else:
+        steps.append({"name": "wishes", "status": "skipped", "ms": 0})
+        steps.append({"name": "matching", "status": "skipped", "ms": 0})
+
+    timings["total"] = elapsed_ms(started)
+    return {
+        "steps": steps,
+        "timings_ms": timings,
+        "portrait": portrait_result.get("items") or [],
+        "wishes": wishes,
+        "follow_up": follow_up,
+        "matches": matches,
+        "qloo_log": qloo_log,
+    }
 
 
-@router.post("/agent/reactions")
-def reactions_apply(body: ReactionsIn):
-    """Apply 'lit_up' / 'no_reaction' taps. Returns the updated portrait, the next cards and a kind message."""
-    _limits(body.items, body.tried, body.reactions)
-    person = {"first_name": body.person.first_name.strip(), "birth_year": body.person.birth_year,
-              "region": body.person.region.strip(), "language": body.person.language.strip()}
-    return apply_reactions(person, [_dump(i) for i in body.items], [_dump(r) for r in body.reactions],
-                           [t[:80] for t in body.tried])
+@router.get("/{person_id}/agent-log")
+def get_agent_log(person_id: UUID):
+    with get_conn() as conn:
+        require_person(conn, person_id)
+        return conn.execute(
+            "select step, log, created_at from agent_log where person_id = %s order by created_at",
+            (person_id,),
+        ).fetchall()

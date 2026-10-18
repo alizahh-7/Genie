@@ -17,6 +17,8 @@ def _client_ip(request: Request) -> str:
 def _rule(method: str, path: str):
     """Returns (bucket, max requests, window in seconds)."""
     if method == "POST":
+        if path.endswith(("/portrait/build", "/wishes/generate", "/agent/run")):
+            return "agent", 40, 3600
         if path == "/makers/apply":
             return "apply", 5, 3600
         if path == "/makers/recover":
