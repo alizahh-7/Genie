@@ -2,9 +2,11 @@
     python engine\\live_checks.py            # level 4, extra judge inputs, level 6, (LLM if a key is set)
     python engine\\live_checks.py --level4   # or --extra / --l6 / --llm for just one
 Output is printed only (nothing Qloo-related is written to disk except the git-ignored cache)."""
+import json
 import os
 import sys
 from pathlib import Path
+from wishes import generate_wishes
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from qloo_client import QlooClient
@@ -69,6 +71,36 @@ def llm_check():
     print("  extracted:", e)
     print("  PASS" if a and e else "  FAIL: check LLM_API_KEY / LLM_MODEL")
 
+def wishes():
+    print("\n=== WISHES (Day 4): Nani end to end ===")
+    person = {"first_name": "Nani", "birth_year": 1948, "region": "Hyderabad", "language": "Hindi"}
+    facts = [("music", "Lag Jaa Gale"), ("music", "Kishore Kumar"), ("music", "Mohammed Rafi"),
+             ("food", "haleem"), ("place", "Charminar"), ("film", "Mughal-e-Azam")]
+    c = QlooClient()
+    port = build_portrait(person, {"quick_facts": [{"domain": d, "name": n} for d, n in facts]}, client=c)
+    out = generate_wishes(port["items"], person, client=c)
+    for w in out["wishes"]:
+        print(f"\n  [{w['mode']:9s}] {w['title']}   ({w['kind']}, {w['basis']}, maker: {w['maker_type']})")
+        print(f"     {w['description']}")
+        print(f"     from: {w['source_items']}   tags: {len(w['tags'])}")
+        if w["why"]:
+            print(f"     why: {w['why']}")
+    calls = [l for l in c.log if l["step"] == "wish_discover"]
+    print(f"\n  discovery calls: {[l['status'] for l in calls]}   follow_up: {out['follow_up']}")
+    print(f"  {len(out['wishes'])} wishes -> {'PASS' if 3 <= len(out['wishes']) <= 5 else 'FAIL'}")
+    # raw shape of the insights answer, so we can wire explainability next
+    ents = [i["qloo_entity_id"] for i in port["items"] if i["qloo_entity_id"] and not i["qloo_entity_id"].startswith("urn:tag")][:6]
+    data, err = c.get("/v2/insights", {"filter.type": "urn:entity:artist", "take": 3,
+                                       "feature.explainability": "true",
+                                       "signal.interests.entities": ",".join(ents)}, step="probe")
+    res = (data or {}).get("results", {})
+    print("\n  RAW SHAPE: top-level keys:", list(data.keys()) if data else err)
+    print("  results keys:", list(res.keys()) if isinstance(res, dict) else type(res))
+    first = (res.get("entities") or [{}])[0] if isinstance(res, dict) else {}
+    print("  first entity keys:", list(first.keys()))
+    for k in ("query", "explainability", "explain"):
+        if k in first:
+            print(f"  first entity [{k}]:", json.dumps(first[k], ensure_ascii=False)[:400])
 
 if run_all or "--level4" in args:
     level4()
@@ -78,3 +110,5 @@ if run_all or "--l6" in args:
     l6()
 if run_all or "--llm" in args:
     llm_check()
+if run_all or "--wishes" in args:
+    wishes()
