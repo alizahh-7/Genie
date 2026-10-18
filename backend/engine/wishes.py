@@ -113,11 +113,11 @@ def _cands(by, basis, person, discoveries):
     if music:
         names = " and ".join(i["name"] for i in music[:2])
         add(1, "music", "Their songs, recorded for them",
-            f"A singer or musician records {names} just for them. The family can play it whenever they like, from anywhere.",
+            f"A singer or musician records a few favourites with {names} in mind, just for them. The family can play it whenever they like, from anywhere.",
             "remote", "musician", music[:2])
         if region:
             add(5, "music", "A live evening of their songs",
-                f"A musician plays {names} for them at home, with family in the room. This needs a verified Wish Maker and a family member present.",
+                f"A musician plays a few favourites with {names} in mind, for them at home with family in the room. This needs a verified Wish Maker and a family member present.",
                 "in-person", "musician", music[:2])
     if food:
         dish = food[0]["name"]
@@ -171,34 +171,63 @@ def _ok(w):
             and w["maker_type"] and not BANNED.search(w["title"] + " " + w["description"]))
 
 
-def _polish(wishes):
-    """Optional: one LLM call to soften wording. Whole answer is rejected unless every wish is safe."""
+def _polish_checked(wishes):
+    """One LLM call to soften wording. Each rewrite is accepted or rejected on its own, and every
+    rejection says why. Returns (wishes, accepted_count, reasons). Templates are the fallback."""
     payload = [{"i": n, "title": w["title"], "description": w["description"]} for n, w in enumerate(wishes)]
     system = ("You rewrite short descriptions of gift ideas for a family who loves someone nearing the end of life. "
               "Tone: warm, plain, quiet. No emojis, no exclamation marks, no medical or clinical words, no promises. "
               "Keep every name exactly as written. If a description says it is a guess, keep saying so. "
               "If it says a family member is present, keep saying so. At most two sentences per description. "
               'Reply with JSON only: {"wishes": [{"i": 0, "title": "...", "description": "..."}]}')
-    data = llm.chat_json(system, json.dumps({"wishes": payload}, ensure_ascii=False))
+    data = llm.chat_json(system, json.dumps({"wishes": payload}, ensure_ascii=False), max_tokens=2000, timeout=15)
+    if data is None:
+        return wishes, 0, ["no answer from the LLM (down, slow, or no key)"]
     try:
         rows = sorted(data["wishes"], key=lambda r: r["i"])
-        if len(rows) != len(wishes):
-            return wishes
-        out = []
-        for w, r in zip(wishes, rows):
-            t, d = str(r["title"]).strip(), str(r["description"]).strip()
-            text = t + " " + d
-            orig = compact(w["title"] + " " + w["description"])
-            names = [s for s in w["source_items"] if compact(s) and compact(s) in orig]
-            if (not t or not d or len(t) > 70 or len(d) > 280 or "!" in text or BANNED.search(text)
-                    or any(compact(s) not in compact(text) for s in names)
-                    or (w["kind"] == "discovery" and "guess" not in text.lower())
-                    or (w["mode"] == "in-person" and "family member" not in text.lower())):
-                return wishes
-            out.append({**w, "title": t, "description": d})
-        return out
     except Exception:
-        return wishes
+        return wishes, 0, ["answer not in the expected shape"]
+    if len(rows) != len(wishes):
+        return wishes, 0, [f"wrong number of wishes ({len(rows)} instead of {len(wishes)})"]
+    out, reasons, ok = [], [], 0
+    for w, r in zip(wishes, rows):
+        try:
+            t, d = str(r["title"]).strip(), str(r["description"]).strip()
+        except Exception:
+            out.append(w)
+            reasons.append(f"{w['kind']}: bad row")
+            continue
+        text = t + " " + d
+        orig = compact(w["title"] + " " + w["description"])
+        names = [s for s in w["source_items"] if compact(s) and compact(s) in orig]
+        why = None
+        if not t or not d:
+            why = "empty text"
+        elif len(t) > 70:
+            why = "title too long"
+        elif len(d) > 280:
+            why = "description too long"
+        elif "!" in text:
+            why = "exclamation mark"
+        elif BANNED.search(text):
+            why = "banned wording"
+        elif any(compact(s) not in compact(text) for s in names):
+            why = "dropped a name"
+        elif w["kind"] == "discovery" and "guess" not in text.lower():
+            why = "discovery lost the 'guess' wording"
+        elif w["mode"] == "in-person" and "family member" not in text.lower():
+            why = "in-person wish lost 'family member'"
+        if why:
+            out.append(w)
+            reasons.append(f"{w['kind']}: {why}")
+        else:
+            out.append({**w, "title": t, "description": d})
+            ok += 1
+    return out, ok, reasons
+
+
+def _polish(wishes):
+    return _polish_checked(wishes)[0]
 
 
 def generate_wishes(items, person=None, client=None, use_llm=True):

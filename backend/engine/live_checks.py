@@ -12,6 +12,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from qloo_client import QlooClient
 from resolve import resolve
 from portrait import build_portrait
+from agent import run_agent
 import llm
 
 args = set(sys.argv[1:])
@@ -101,6 +102,20 @@ def wishes():
     for k in ("query", "explainability", "explain"):
         if k in first:
             print(f"  first entity [{k}]:", json.dumps(first[k], ensure_ascii=False)[:400])
+            
+def agent():
+    print("\n=== AGENT (Day 5): Nani, one call ===")
+    person = {"first_name": "Nani", "birth_year": 1948, "region": "Hyderabad", "language": "Hindi"}
+    facts = [("music", "Lag Jaa Gale"), ("music", "Kishore Kumar"), ("music", "Mohammed Rafi"),
+             ("food", "haleem"), ("place", "Charminar"), ("film", "Mughal-e-Azam")]
+    out = run_agent(person, {"quick_facts": [{"domain": d, "name": n} for d, n in facts]})
+    for s in out["steps"]:
+        calls = f"  [{s['qloo_calls']} Qloo calls, {s['cached']} cached, {s['errors']} errors]" if s["qloo_calls"] is not None else ""
+        print(f"  {s['title']:20s} {s['summary']}{calls}")
+    print(f"\n  {len(out['items'])} items, {len(out['wishes'])} wishes, timings: {out['timings']}")
+    for w in out["wishes"]:
+        print(f"   [{w['mode']:9s}] {w['title']}")
+    print("  PASS" if out["items"] and 3 <= len(out["wishes"]) <= 5 and out["steps"] else "  FAIL")
 
 if run_all or "--level4" in args:
     level4()
@@ -112,3 +127,5 @@ if run_all or "--llm" in args:
     llm_check()
 if run_all or "--wishes" in args:
     wishes()
+if run_all or "--agent" in args:
+    agent()

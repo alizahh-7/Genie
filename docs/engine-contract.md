@@ -1,10 +1,11 @@
-# Genie engine contract (v1.2)
+# Genie engine contract (v1.3)
 
 Engine owner: Umaima. Backend owner: Zunairah.
 The engine lives in `backend/engine/` as plain Python. The backend imports and calls these functions:
 
 ```python
-from engine import resolve, build_portrait, generate_wishes
+from engine import run_agent                                  # the one call the backend needs
+from engine import resolve, build_portrait, generate_wishes   # the pieces behind it
 ```
 
 The engine never touches the database. It returns data and the backend stores it.
@@ -12,7 +13,7 @@ The engine never touches the database. It returns data and the backend stores it
 ## Rules
 - Every function returns within a timeout and **never raises** to the caller. Failure comes back as `found: false`, a lower `resolution_level`, or fewer wishes. `build_portrait` has a 20 second overall limit. Uncached Qloo calls take about 3-6 seconds each, so the backend should run the engine in a worker thread or background task with its own timeout (worst case with repeated Qloo timeouts is around 30 seconds).
 - All Qloo calls go through one cached client inside the engine.
-- Keys come from environment variables only: `QLOO_API_KEY`, and optionally `LLM_API_KEY`, `LLM_MODEL`, `LLM_BASE_URL`. Without the LLM variables everything still works.
+- Keys and switches come from environment variables only: `QLOO_API_KEY`, and optionally `LLM_API_KEY`, `LLM_MODEL`, `LLM_BASE_URL`, `WISH_POLISH`. Without the LLM variables everything still works.
 - Domains are one of: `music`, `food`, `place`, `film`, `other`. (TV shows are treated as `film`.)
 - `source_label` is one of: `told`, `likely`, `reacted`, `ai-only`.
 - `resolution_level` is the fallback ladder level: 1 exact, 2 alternate spelling, 3 parent (artist/cuisine/city), 4 era-and-place, 5 not in Qloo, 6 API error or timeout.
@@ -30,6 +31,7 @@ The engine never touches the database. It returns data and the backend stores it
 9. Circle answers: the engine detects the domain from the answer key (a key containing `music`, `food`, `place`, `film`). The "what made them light up" answer is not mapped to a domain. Please confirm the real keys.
 10. `generate_wishes` returns extra fields (`kind`, `maker_type`, `tags`, `basis`, `why`, `affinity`) and a top-level `follow_up`. The `wish` table currently holds only title, description, mode and source_items, so please either add columns (or one JSON column) for the extra fields or confirm that they are ignored. `why` and `affinity` are needed later for the side-by-side screen.
 11. `maker_type` values are `musician`, `home cook`, `storyteller`, `volunteer`. Please confirm they match the `type` values in `wish_maker`, or tell Umaima which names to use.
+12. **New in v1.3:** `run_agent(person, inputs)` is the single call to wire (section 4). It returns the same `items` and `wishes` as above plus a list of visible `steps` and `timings`. Wish polish by the LLM is off by default in `run_agent`.
 
 ## 1. resolve(name, domain, hint=None)
 `hint` is optional: an artist, cuisine or city to use at level 3.
@@ -118,11 +120,34 @@ Returns:
 - Only `discovery` wishes carry `why` (a sentence naming the anchors Qloo weighted most) and `affinity` (Qloo's 0-1 match score). Both are `null` for other wishes. A discovery wish always says it is a guess.
 - `follow_up` is a gentle question to show when the portrait has fewer than 3 usable items ("Is there a song or a place they loved?"), otherwise `null`.
 - No wish contains medical or clinical wording. If Qloo or the LLM is down, wishes are still returned, without the discovery wish.
+- Wording comes from fixed templates. The LLM may rewrite it only when polish is switched on, and each rewrite is checked (names kept, a discovery still says it is a guess, an in-person wish still mentions a family member, no medical wording); otherwise the template is kept. `run_agent` leaves polish off unless `WISH_POLISH=1`.
 
-## 4. How the backend should call the engine
-- Module path: `backend/engine/` (import `from engine import ...` with `backend/` on the path).
-- Typical flow: collect `quick_facts` and `circle_answers` (from `GET /persons/{id}/circle-responses`), call `build_portrait`, save `items` with `POST /persons/{id}/portrait`, call `generate_wishes(items, person)`, save with `POST /persons/{id}/wishes`, then run matching.
-- Return the `qloo_log` from both calls to the frontend for the live Qloo call panel.
+## 4. run_agent(person, inputs)
+The single call for the backend. `person` and `inputs` are exactly as in `build_portrait`. It runs `build_portrait`, then `generate_wishes` on the result, sharing one Qloo client and call log.
+Returns:
+```
+{
+  "items": [...],        # as in section 2: POST /persons/{id}/portrait
+  "wishes": [...],       # as in section 3: POST /persons/{id}/wishes
+  "follow_up": null,
+  "steps": [
+    {"id": "resolve", "title": "Resolve in Qloo",
+     "summary": "Matched all 6 in Qloo (1 through an artist or parent).",
+     "qloo_calls": 11, "cached": 11, "errors": 0}
+  ],
+  "qloo_log": [...],     # every Qloo call from both stages
+  "timings": {"portrait_ms": 4200, "wishes_ms": 900, "total_ms": 5100}
+}
+```
+- `steps` come in this order: `collect`, `resolve`, `expand`, `era` (only when the portrait was thin), `build`, `discover`, `wishes`. `qloo_calls`, `cached` and `errors` are `null` for steps that make no Qloo call.
+- Step summaries are built from real results (names matched, tags collected, Qloo calls, wishes suggested). They are written in the calm tone of the product and can be shown as they are.
+- It never raises. If something unexpected fails it returns empty `items` and `wishes`, `follow_up` set, and an empty `steps` list.
+
+## 5. How the backend should call the engine
+- Module path: `backend/engine/` (import `from engine import run_agent` with `backend/` on the path). `backend/requirements.txt` must include `requests` and `python-dotenv`.
+- Typical flow: collect `quick_facts` and `circle_answers` (from `GET /persons/{id}/circle-responses`), call `run_agent` from a worker thread with your own timeout, save `items` with `POST /persons/{id}/portrait`, save `wishes` with `POST /persons/{id}/wishes`, then run matching.
+- Return `steps`, `qloo_log` and `timings` to the frontend for the "what Genie did" panel and the live Qloo call panel. They do not need to be stored.
+- Qloo's cache lives on the server's disk and is wiped on a Render redeploy. After each deploy, run the demo person once to warm it.
 - Reaction Mode will need a function that takes reactions and returns an updated portrait. Its signature is agreed on Day 6.
 
 ## Backend endpoints the engine output is stored through
