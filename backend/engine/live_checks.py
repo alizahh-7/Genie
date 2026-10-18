@@ -7,6 +7,7 @@ import os
 import sys
 from pathlib import Path
 from wishes import generate_wishes
+from reaction import pick_reaction_cards, apply_reactions
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from qloo_client import QlooClient
@@ -117,6 +118,26 @@ def agent():
         print(f"   [{w['mode']:9s}] {w['title']}")
     print("  PASS" if out["items"] and 3 <= len(out["wishes"]) <= 5 and out["steps"] else "  FAIL")
 
+def reaction():
+    print("\n=== REACTION MODE (Day 6): Nani ===")
+    person = {"first_name": "Nani", "birth_year": 1948, "region": "Hyderabad", "language": "Hindi"}
+    facts = [("music", "Lag Jaa Gale"), ("music", "Kishore Kumar"), ("music", "Mohammed Rafi"),
+             ("food", "haleem"), ("place", "Charminar"), ("film", "Mughal-e-Azam")]
+    items = run_agent(person, {"quick_facts": [{"domain": d, "name": n} for d, n in facts]}, use_llm=False)["items"]
+    cards = pick_reaction_cards(items)["cards"]
+    print("  Cards:")
+    for c in cards:
+        print(f"   [{c['domain']:5s}] {c['prompt']}")
+    taps = [{"name": cards[0]["name"], "domain": cards[0]["domain"], "reaction": "lit_up"}]
+    if len(cards) > 1:
+        taps.append({"name": cards[1]["name"], "domain": cards[1]["domain"], "reaction": "no_reaction"})
+    res = apply_reactions(person, items, taps)
+    print(f"\n  {res['message']}")
+    print(f"  added: {res['added']}   removed: {res['removed']}   tried: {res['tried']}")
+    print(f"  next cards: {[c['name'] for c in res['next']]}")
+    print(f"  Qloo calls: {[(l['step'], l['status']) for l in res['qloo_log']]}")
+    print("  PASS" if res["items"] and len(res["tried"]) == len(taps) else "  FAIL")
+    
 if run_all or "--level4" in args:
     level4()
 if run_all or "--extra" in args:
@@ -129,3 +150,5 @@ if run_all or "--wishes" in args:
     wishes()
 if run_all or "--agent" in args:
     agent()
+if run_all or "--reaction" in args:
+    reaction()

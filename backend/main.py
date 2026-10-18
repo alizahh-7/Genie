@@ -1,6 +1,7 @@
 import asyncio
 import os
 from contextlib import asynccontextmanager
+from routers import agent
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
@@ -82,3 +83,4 @@ app.include_router(lifecycle.admin_router)
 app.include_router(wishbook.owner)
 app.include_router(wishbook.public)
 app.include_router(meta.router)
+app.include_router(agent.router)

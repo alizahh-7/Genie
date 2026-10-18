@@ -23,6 +23,12 @@ CACHE_DIR.mkdir(exist_ok=True)
 # tag types that describe the audience, not the thing. Useless for matching makers.
 _DROP_TAG_TYPES = ("audience", "obscurity", "complexity", "age_range", "customer_identity")
 
+# tag names that must not reach a family-facing screen or a match: ageing and end-of-life wording (the tone
+# rules forbid it) and religion-plus-family labels on content. Genre tags (Sufi, Devotional) are kept.
+_DROP_TAG_NAMES = re.compile(
+    r"\b(old age|ageing|aging|elderly|longevity|mortality|death|dying|funeral|grief|bereave\w*|terminal|"
+    r"illness|disease|cancer|dementia|alzheimer\w*|hospice|hospital|suicide)\b|"
+    r"\b(muslim|hindu|christian|jewish|sikh|buddhist)\s+(family|families|community|characters?|protagonists?)\b", re.I)
 
 class QlooClient:
     def __init__(self, timeout=10, retries=2):
@@ -130,12 +136,14 @@ def score(query, cand):
 
 
 def clean_tags(hit, cap=30):
-    """Normalise tags from /search (tag_id) and /v2/insights (id) into {id, name, type}."""
+    """Normalise tags from /search (tag_id) and /v2/insights (id) into {id, name, type}.
+    Drops audience-style tag types and tag names that must not reach a family-facing screen."""
     out, seen = [], set()
     for t in hit.get("tags") or []:
         tid = t.get("tag_id") or t.get("id")
         typ = t.get("type") or ""
-        if not tid or any(x in typ for x in _DROP_TAG_TYPES) or tid in seen:
+        name = t.get("name") or ""
+        if not tid or tid in seen or any(x in typ for x in _DROP_TAG_TYPES) or _DROP_TAG_NAMES.search(name):
             continue
         seen.add(tid)
         out.append({"id": tid, "name": t.get("name", ""), "type": typ})

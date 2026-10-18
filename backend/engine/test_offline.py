@@ -60,6 +60,8 @@ check("brackets ignored", score("Jeju Island", "Jeju Island (Jeju Do)") == 1.0)
 check("Tirupati != Railway Station", score("Tirupati", "Tirupati Railway Station") < 0.85)
 check("Arabic script exact", score("أم كلثوم", "أم كلثوم") == 1.0)
 check("audience tags dropped", clean_tags({"tags": [tag("Rock"), tag("Loyal", "x", "urn:tag:audience:qloo")]}) == [{"id": "urn:tag:genre:rock", "name": "Rock", "type": "urn:tag:genre"}])
+check("ageing and end-of-life tags dropped", clean_tags({"tags": [tag("Old age", "old_age"), tag("Ageing", "ageing"), tag("Death Metal", "dm"), tag("Rock")]}) == [{"id": "urn:tag:genre:rock", "name": "Rock", "type": "urn:tag:genre"}])
+check("identity-label tags dropped, genres kept", [t["name"] for t in clean_tags({"tags": [tag("Muslim family", "mf"), tag("Sufi", "sufi"), tag("Devotional", "dev")]})] == ["Sufi", "Devotional"])
 
 print("ladder")
 f = Fake({("Queen", A): {"results": [ent("Queen", "Q")]}})
