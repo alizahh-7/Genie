@@ -10,7 +10,7 @@ from db import get_conn
 from guard import install_guard
 from maintenance import purge_expired
 from routers import (
-    admin, circle, lifecycle, maker_portal, makers, matching, meta,
+    admin, agent, circle, lifecycle, maker_portal, makers, matching, meta,
     persons, portrait, privacy, requests, wishbook, wishes,
 )
 
@@ -82,3 +82,4 @@ app.include_router(lifecycle.admin_router)
 app.include_router(wishbook.owner)
 app.include_router(wishbook.public)
 app.include_router(meta.router)
+app.include_router(agent.router)

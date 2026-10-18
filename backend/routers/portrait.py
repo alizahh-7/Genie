@@ -18,42 +18,42 @@ class PortraitItemIn(BaseModel):
     source_label: Literal["told", "likely", "reacted", "ai-only"] = "told"
     confidence: Optional[float] = Field(default=None, ge=0, le=1)
     resolution_level: Optional[int] = Field(default=None, ge=1, le=6)
+    matched_name: Optional[str] = Field(default=None, max_length=200)
 
 
 class PortraitIn(BaseModel):
     items: list[PortraitItemIn] = Field(max_length=60)
 
 
-@router.post("/{person_id}/portrait")
-def save_portrait(person_id: UUID, body: PortraitIn):
+def replace_portrait(conn, person_id, items) -> int:
     rows = [
         (
-            person_id,
-            i.domain,
-            i.name.strip(),
-            i.qloo_entity_id,
-            Jsonb(i.tags),
-            i.source_label,
-            i.confidence,
-            i.resolution_level,
+            person_id, i.domain, i.name.strip(), i.qloo_entity_id, Jsonb(i.tags),
+            i.source_label, i.confidence, i.resolution_level, i.matched_name,
         )
-        for i in body.items
+        for i in items
     ]
+    conn.execute("delete from portrait_item where person_id = %s", (person_id,))
+    if rows:
+        with conn.cursor() as cur:
+            cur.executemany(
+                """
+                insert into portrait_item
+                  (person_id, domain, name, qloo_entity_id, qloo_tags,
+                   source_label, confidence, resolution_level, matched_name, created_at)
+                values (%s, %s, %s, %s, %s, %s, %s, %s, %s, clock_timestamp())
+                """,
+                rows,
+            )
+    return len(rows)
+
+
+@router.post("/{person_id}/portrait")
+def save_portrait(person_id: UUID, body: PortraitIn):
     with get_conn() as conn:
         require_person(conn, person_id)
-        conn.execute("delete from portrait_item where person_id = %s", (person_id,))
-        if rows:
-            with conn.cursor() as cur:
-                cur.executemany(
-                    """
-                    insert into portrait_item
-                      (person_id, domain, name, qloo_entity_id, qloo_tags,
-                       source_label, confidence, resolution_level)
-                    values (%s, %s, %s, %s, %s, %s, %s, %s)
-                    """,
-                    rows,
-                )
-    return {"saved": len(rows)}
+        saved = replace_portrait(conn, person_id, body.items)
+    return {"saved": saved}
 
 
 @router.get("/{person_id}/portrait")
@@ -63,7 +63,7 @@ def get_portrait(person_id: UUID):
         rows = conn.execute(
             """
             select id, domain, name, qloo_entity_id, qloo_tags as tags,
-                   source_label, confidence, resolution_level
+                   source_label, confidence, resolution_level, matched_name
             from portrait_item where person_id = %s order by created_at, name
             """,
             (person_id,),
