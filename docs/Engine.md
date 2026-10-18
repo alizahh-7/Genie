@@ -32,8 +32,10 @@ Not built yet (Day 4+): `generate_wishes`, affinity scores, cross-domain "people
 | `test_engine.py` | Ladder checks and the "Nani" demo portrait. Run: `python engine\test_engine.py` from `backend/`. |
 | `coverage_test_v2.py` | The original 40-input coverage test and Qloo probe (`--probe`). |
 | `coverage_run.py` | Re-runs the same 40 inputs through the real ladder. |
+| `test_offline.py` | 40 offline checks, no network or keys |
+| `live_checks.py` | real-Qloo checks: level 4, judge-style inputs, level 6, LLM |
 
-Git-ignored (never commit): `engine/_cache/`, `engine/_coverage/`, `engine/_nani_portrait.json`. Use one rule: `backend/engine/_*`.
+Git-ignored (never commit): `engine/_cache/`, `engine/_coverage/`, `*.csv`. Use one rule: `backend/engine/_*`.
 
 ## 3. Setup
 
@@ -47,8 +49,9 @@ pip install requests python-dotenv
 ```
 QLOO_API_KEY=...                         # hackathon key
 QLOO_API_URL=https://hackathon.api.qloo.com
-LLM_API_KEY=...                          # optional, see section 8
-LLM_MODEL=claude-haiku-5-5               # optional
+LLM_API_KEY=...          # Google Gemini key (free tier, AI Studio)
+LLM_MODEL=gemini-3.8-flash
+LLM_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai
 ```
 
 The hackathon key only works against `https://hackathon.api.qloo.com`. Staging and production return 401.
@@ -108,6 +111,7 @@ Example: a told song matched via its artist (level 3) is 0.9 x 0.7 = 0.63.
 
 ## 8. LLM (optional but strongly recommended)
 
+The LLM is provider-agnostic: any OpenAI-compatible chat endpoint works through LLM_BASE_URL. We use Gemini’s free tier. Free tiers may use prompts to improve the provider’s models, which is why only names and the person’s region and language are sent, never surnames, contact details or health data. Mention the third-party AI in the Devpost privacy section.
 Without `LLM_API_KEY` everything still works, using built-in aliases and parent hints for the known test cases. What you lose:
 - Free-text circle answers: the fallback splits on commas, "and" and line breaks and keeps only short (five words or fewer) segments. Long sentences yield nothing rather than junk. Real answers need the LLM.
 - Level 2/3 for unseen names: only names in the built-in tables get alternate spellings or a parent.
@@ -131,8 +135,8 @@ The LLM receives only names of songs, artists, dishes, places and films (plus th
 
 ## 10. Known limits and open items
 
-- Level 4 (era and place) is implemented but **not yet verified against live Qloo** (the Nani test resolved enough items to skip it). It might skew Western for older Indian personas. The language tag hints in `portrait.py` (`LANG_TAGS`) are unverified guesses.
-- The LLM path is **untested** until a key is set.
+- Level 4 uses verified Qloo tag ids per language (LANG_TAGS: Hindi, Urdu, Telugu, Tamil, Korean, Arabic). Languages not in the table fall back to age + place signals only.
+- The LLM path is verified (live_checks.py --llm).
 - `affinity` in `resolve()` is `null`. Search does not return it. Real affinity needs an insights call (Day 4).
 - Circle answer question keys are assumed to contain `music`, `food`, `place`, `film`. Confirm against `GET /circle/{token}` with Zunairah.
 - No automated tests yet beyond `test_engine.py` and an offline check of the thin-hit rule.

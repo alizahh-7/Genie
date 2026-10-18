@@ -6,7 +6,8 @@ __pycache__/
 *.db
 node_modules/
 .DS_Store
+# Qloo response data must never be public (Qloo terms)
 _coverage/
 _cache/
-backend/engine/_*
-backend/engine/_nani_portrait.json
+_nani_portrait.json
+*.csv

@@ -21,8 +21,16 @@ KEY_DOMAIN = {"music": "music", "song": "music", "food": "food", "dish": "food",
               "place": "place", "film": "film", "movie": "film"}
 LEVEL_FACTOR = {1: 1.0, 2: 0.95, 3: 0.7, 4: 0.6, 5: 0.5, 6: 0.5}
 SOURCE_BASE = {"told": 0.9, "reacted": 0.95, "likely": 0.5, "ai-only": 0.3}
-# verify these tag ids on your first run; harmless if Qloo ignores them
-LANG_TAGS = {"hindi": "urn:tag:genre:hindi", "telugu": "urn:tag:influence:qloo:telugu_film_music"}
+# verified against /v2/tags on the hackathon API (Oct 18). Music genre tags for artists,
+# keyword tags for films. Missing entry = no language signal for that domain.
+LANG_TAGS = {
+    "hindi":  {"music": "urn:tag:genre:music:bollywood", "film": "urn:tag:keyword:qloo:bollywood"},
+    "urdu":   {"music": "urn:tag:genre:music:ghazal"},
+    "telugu": {"music": "urn:tag:genre:music:tollywood", "film": "urn:tag:keyword:qloo:telugu_cinema"},
+    "tamil":  {"music": "urn:tag:genre:music:tamil", "film": "urn:tag:keyword:qloo:tamil_cinema"},
+    "korean": {"music": "urn:tag:genre:music:k_pop"},
+    "arabic": {"music": "urn:tag:genre:music:arabic"},
+}
 
 
 def _age_bracket(birth_year):
@@ -71,27 +79,44 @@ def _confidence(source, level):
     return round(SOURCE_BASE.get(source, 0.5) * LEVEL_FACTOR.get(level, 0.5), 2)
 
 
-def _era_items(client, person, need):
-    """Level 4: 'likely from their era and region' using Qloo audience signals."""
+def _era_items(client, person, need, have=()):
+    """Level 4: 'likely from their era and region' using Qloo audience signals.
+    Signal combinations are tried per domain (the language tag differs for music and film):
+    age+place+language, age+place, language+place, age only."""
+    age = _age_bracket(person.get("birth_year"))
+    loc = person.get("region")
+    lang = LANG_TAGS.get((person.get("language") or "").strip().lower(), {})
     items = []
     for ftype, domain in (("urn:entity:artist", "music"), ("urn:entity:movie", "film")):
-        params = {"filter.type": ftype, "take": need}
-        age = _age_bracket(person.get("birth_year"))
-        if age:
-            params["signal.demographics.age"] = age
-        if person.get("region"):
-            params["signal.location.query"] = person["region"]
-        tag = LANG_TAGS.get((person.get("language") or "").strip().lower())
-        if tag:
-            params["signal.interests.tags"] = tag
-        data, err = client.get("/v2/insights", params, step="era_place")
-        if data is None:
-            continue
-        for h in as_list(data)[:need]:
-            items.append({"domain": domain, "name": hit_name(h), "qloo_entity_id": hit_id(h),
-                          "tags": clean_tags(h), "source_label": "likely",
-                          "confidence": _confidence("likely", 4), "resolution_level": 4,
-                          "matched_name": hit_name(h)})
+        tag = lang.get(domain)
+        combos = []
+        for use_age, use_loc, use_tag in ((1, 1, 1), (1, 1, 0), (0, 1, 1), (1, 0, 0)):
+            c = {}
+            if use_age and age:
+                c["signal.demographics.age"] = age
+            if use_loc and loc:
+                c["signal.location.query"] = loc
+            if use_tag and tag:
+                c["signal.interests.tags"] = tag
+            if c and c not in combos:
+                combos.append(c)
+        for combo in combos:
+            data, err = client.get("/v2/insights", {"filter.type": ftype, "take": need + 3, **combo}, step="era_place")
+            hits = as_list(data) if data else []
+            if not hits:
+                continue
+            n = 0
+            for h in hits:
+                if n >= need:
+                    break
+                if compact(hit_name(h)) in have:
+                    continue
+                items.append({"domain": domain, "name": hit_name(h), "qloo_entity_id": hit_id(h),
+                              "tags": clean_tags(h), "source_label": "likely",
+                              "confidence": _confidence("likely", 4), "resolution_level": 4,
+                              "matched_name": hit_name(h)})
+                n += 1
+            break  # first combination that works wins
     return items
 
 
@@ -132,5 +157,5 @@ def _build(person, inputs, client):
                       "matched_name": r["entity"]["name"] if r.get("entity") else None})
 
     if resolved < 3:  # thin portrait: add level 4 items
-        items += _era_items(client, person, need=3)
+        items += _era_items(client, person, need=3, have={compact(i['name']) for i in items} | {compact(i['matched_name'] or '') for i in items})
     return {"items": items, "qloo_log": client.log}

@@ -20,6 +20,9 @@ TYPES = {
 ALIASES = {
     "ummkulthum": ["Umm Kalthoum", "Oum Kalthoum", "Om Kalsoum", "أم كلثوم"],
     "whythiskolaveridi": ["Kolaveri Di"],
+    "fairouz": ["Fairuz"],
+    "hussainsagar": ["Hussain Sagar Lake"],
+    "kumbakonamfiltercoffee": ["filter coffee", "South Indian filter coffee"],
 }
 PARENTS = {
     "buttabomma": ["Armaan Malik"],
@@ -28,6 +31,7 @@ PARENTS = {
     "whythiskolaveridi": ["Anirudh Ravichander", "Dhanush"],
     "hotelcalifornia": ["Eagles"],
     "tirupati": ["Tirumala Venkateswara Temple", "Tirupati Balaji Temple"],
+    "aayegaaanewala": ["Lata Mangeshkar"],
 }
 
 
@@ -99,6 +103,8 @@ def _resolve(client, name, domain, hint, region, language, use_llm):
     if domain not in ("music", "food", "place", "film"):
         return _miss(name, domain, 5)
     key = compact(name)
+    if len(key) < 2:
+        return _miss(name, domain, 5)
     parents = ([hint] if hint else []) + list(PARENTS.get(key, []))
 
     # level 1: exact

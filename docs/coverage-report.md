@@ -40,6 +40,18 @@ Implemented levels 1, 2, 3, 5, 6 in `resolve.py` and level 4 in `portrait.py`. S
 
 ## Still to do for this gate
 
-- [ ] Run `python engine\coverage_run.py` (the 40 inputs through the real ladder) and fill the `my_review` column by hand.
-- [ ] Add 10 more inputs for the judge test: Telugu ghazal, Korean drama, Arabic singer, Tamil film song, niche dish, a misspelled name, a one-word input, a non-Latin script input, an empty-ish input, a long sentence.
-- [ ] Verify level 4 against live Qloo with an input that triggers it (fewer than 3 resolvable items).
+## Gate status
+
+- [x] 40 inputs run through the real ladder (`coverage_run.py`) and reviewed by hand (`my_review`).
+- [x] Judge-style extra inputs (`live_checks.py --extra`): 12 inputs covering spelling variants, songs, regional dishes, a landmark, a one-letter input.
+- [x] Level 4 verified live for three thin personas (Hindi/Hyderabad, Telugu/Chennai, Korean/Seoul).
+- [x] Level 6 verified (simulated bad key).
+
+## Judge-style inputs (our own inputs, statuses only)
+
+| Input | Result |
+|---|---|
+| Ghulam Ali, Descendants of the Sun, Mugal e Azam (misspelt), Elton John, pesarattu, Edinburgh | Level 1 |
+| Fairouz (alternate spelling), Hussain Sagar, Kumbakonam filter coffee | Level 2 (alias or LLM) |
+| Aayega Aanewala (a song) | Level 3, via the artist |
+| haleem biriyani, "a" | Level 5, honestly "not in Qloo" |
