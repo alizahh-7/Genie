@@ -13,7 +13,7 @@ from guard import install_guard
 from maintenance import purge_expired
 from routers import (
     admin, agent, circle, lifecycle, maker_portal, makers, matching, meta,
-    persons, portrait, privacy, requests, wishbook, wishes,
+    persons, portrait, privacy, requests, wishbook, wishes, agent_screens, agent_demo
 )
 
 load_dotenv()
@@ -86,3 +86,4 @@ app.include_router(wishbook.public)
 app.include_router(meta.router)
 app.include_router(agent.router)
 app.include_router(agent_demo.router)
+app.include_router(agent_screens.router)

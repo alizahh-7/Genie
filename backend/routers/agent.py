@@ -1,6 +1,6 @@
 import concurrent.futures
-import time
 import os
+import time
 from typing import Literal, Optional
 from uuid import UUID
 
@@ -16,8 +16,9 @@ from routers.wishes import WishIn, insert_wish
 router = APIRouter(prefix="/persons", tags=["agent"])
 
 _pool = concurrent.futures.ThreadPoolExecutor(max_workers=4)
-ENGINE_TIMEOUT = 40  # seconds per engine call
-POLISH = os.environ.get("WISH_POLISH") == "1"
+ENGINE_TIMEOUT = 40  # seconds for one engine call
+AGENT_TIMEOUT = 70   # seconds for the whole run_agent call
+
 
 class QuickFact(BaseModel):
     domain: Literal["music", "food", "place", "film", "other"]
@@ -37,14 +38,18 @@ def load_engine():
     return engine
 
 
-def run_engine(fn, *args):
-    future = _pool.submit(fn, *args)
+def run_engine(fn, *args, timeout=ENGINE_TIMEOUT, **kwargs):
+    future = _pool.submit(fn, *args, **kwargs)
     try:
-        return future.result(timeout=ENGINE_TIMEOUT)
+        return future.result(timeout=timeout)
     except concurrent.futures.TimeoutError:
         raise HTTPException(504, "This is taking longer than expected. Please try again in a moment.")
     except Exception:
         raise HTTPException(502, "Something went wrong while gathering their story. Please try again.")
+
+
+def polish_enabled() -> bool:
+    return os.environ.get("WISH_POLISH", "0") == "1"
 
 
 def elapsed_ms(start) -> int:
@@ -76,23 +81,6 @@ def read_build_inputs(person_id, body):
     return person, inputs
 
 
-def store_portrait(person_id, result) -> int:
-    items = []
-    for raw in result.get("items") or []:
-        try:
-            items.append(PortraitItemIn(**raw))
-        except Exception:
-            continue  # skip an item the database would not accept
-    with get_conn() as conn:
-        require_person(conn, person_id)
-        saved = replace_portrait(conn, person_id, items)
-        conn.execute(
-            "insert into agent_log (person_id, step, log) values (%s, 'portrait', %s)",
-            (person_id, Jsonb(result.get("qloo_log") or [])),
-        )
-    return saved
-
-
 def read_portrait(person_id):
     with get_conn() as conn:
         require_person(conn, person_id)
@@ -108,13 +96,35 @@ def read_portrait(person_id):
     return person, [dict(r) for r in rows]
 
 
-def store_wishes(person_id, result):
+def store_portrait(person_id, raw_items, qloo_log=None, step="portrait", allow_empty=False) -> int:
+    items = []
+    for raw in raw_items or []:
+        try:
+            items.append(PortraitItemIn(**raw))
+        except Exception:
+            continue  # skip an item the database would not accept
+    if not items and not allow_empty:
+        return 0  # an empty engine result must never wipe a saved portrait
+    with get_conn() as conn:
+        require_person(conn, person_id)
+        saved = replace_portrait(conn, person_id, items)
+        if qloo_log is not None:
+            conn.execute(
+                "insert into agent_log (person_id, step, log) values (%s, %s, %s)",
+                (person_id, step, Jsonb(qloo_log)),
+            )
+    return saved
+
+
+def store_wishes(person_id, raw_wishes, qloo_log=None, step="wishes"):
     wishes = []
-    for raw in result.get("wishes") or []:
+    for raw in raw_wishes or []:
         try:
             wishes.append(WishIn(**raw))
         except Exception:
             continue
+    if not wishes:
+        return []  # never delete earlier wishes when the engine returned none
     with get_conn() as conn:
         require_person(conn, person_id)
         # Replace earlier generated wishes, but keep any wish that already has a request in progress.
@@ -130,10 +140,11 @@ def store_wishes(person_id, result):
             (person_id,),
         )
         saved = [insert_wish(conn, person_id, w) for w in wishes]
-        conn.execute(
-            "insert into agent_log (person_id, step, log) values (%s, 'wishes', %s)",
-            (person_id, Jsonb(result.get("qloo_log") or [])),
-        )
+        if qloo_log is not None:
+            conn.execute(
+                "insert into agent_log (person_id, step, log) values (%s, %s, %s)",
+                (person_id, step, Jsonb(qloo_log)),
+            )
     return saved
 
 
@@ -142,7 +153,7 @@ def build_person_portrait(person_id: UUID, body: BuildIn):
     engine = load_engine()
     person, inputs = read_build_inputs(person_id, body)
     result = run_engine(engine.build_portrait, person, inputs) or {}
-    saved = store_portrait(person_id, result)
+    saved = store_portrait(person_id, result.get("items"), result.get("qloo_log") or [])
     return {
         "saved": saved,
         "items": result.get("items") or [],
@@ -156,8 +167,8 @@ def generate_person_wishes(person_id: UUID):
     person, rows = read_portrait(person_id)
     if not rows:
         raise HTTPException(409, "Build the Taste Portrait before generating wishes")
-    result = run_engine(engine.generate_wishes, rows, person, None, POLISH) or {}
-    saved = store_wishes(person_id, result)
+    result = run_engine(engine.generate_wishes, rows, person, use_llm=polish_enabled()) or {}
+    saved = store_wishes(person_id, result.get("wishes"), result.get("qloo_log") or [])
     return {
         "wishes": saved,
         "follow_up": result.get("follow_up"),
@@ -167,50 +178,64 @@ def generate_person_wishes(person_id: UUID):
 
 @router.post("/{person_id}/agent/run")
 def run_whole_agent(person_id: UUID, body: BuildIn):
-    """Portrait, then wishes, then matching, in one call, with steps and timings."""
+    """Portrait, wishes, and matching in one call, with the engine's real steps and timings."""
     engine = load_engine()
     started = time.monotonic()
-    steps, timings, qloo_log = [], {}, []
+    person, inputs = read_build_inputs(person_id, body)
+    result = run_engine(engine.run_agent, person, inputs, timeout=AGENT_TIMEOUT) or {}
+
+    store_portrait(person_id, result.get("items"))
+    saved_wishes = store_wishes(person_id, result.get("wishes"))
 
     t = time.monotonic()
-    person, inputs = read_build_inputs(person_id, body)
-    portrait_result = run_engine(engine.generate_wishes, rows, person, None, POLISH) or {}
-    saved_items = store_portrait(person_id, portrait_result)
-    timings["portrait"] = elapsed_ms(t)
-    steps.append({"name": "portrait", "status": "ok", "ms": timings["portrait"], "items": saved_items})
-    qloo_log += portrait_result.get("qloo_log") or []
-
-    wishes, matches, follow_up = [], [], None
-    if saved_items:
-        t = time.monotonic()
-        person, rows = read_portrait(person_id)
-        wishes_result = run_engine(engine.generate_wishes, rows, person) or {}
-        wishes = store_wishes(person_id, wishes_result)
-        follow_up = wishes_result.get("follow_up")
-        timings["wishes"] = elapsed_ms(t)
-        steps.append({"name": "wishes", "status": "ok", "ms": timings["wishes"], "wishes": len(wishes)})
-        qloo_log += wishes_result.get("qloo_log") or []
-
-        t = time.monotonic()
+    matches = []
+    if saved_wishes:
         with get_conn() as conn:
             person_row, portrait_rows, makers = load_context(conn, person_id)
             wish_rows = conn.execute(
-                f"select {WISH_COLS} from wish where person_id = %s order by created_at", (person_id,)
+                f"select {WISH_COLS} from wish where person_id = %s order by created_at",
+                (person_id,),
             ).fetchall()
             matches = [match_one(conn, person_row, w, portrait_rows, makers, 5) for w in wish_rows]
-        timings["matching"] = elapsed_ms(t)
-        steps.append({"name": "matching", "status": "ok", "ms": timings["matching"], "wishes": len(matches)})
-    else:
-        steps.append({"name": "wishes", "status": "skipped", "ms": 0})
-        steps.append({"name": "matching", "status": "skipped", "ms": 0})
+    matching_ms = elapsed_ms(t)
 
-    timings["total"] = elapsed_ms(started)
+    counts = {"qloo": 0, "text": 0, "type": 0}
+    with_match = 0
+    for m in matches:
+        if m["matches"]:
+            with_match += 1
+        for x in m["matches"]:
+            counts[x["basis"]] = counts.get(x["basis"], 0) + 1
+    if matches:
+        summary = (
+            f"Looked for Wish Makers for {len(matches)} wishes and found someone for {with_match}. "
+            f"{counts['qloo']} matches came through Qloo's taste graph, {counts['text']} by name, "
+            f"and {counts['type']} by what the maker offers."
+        )
+    else:
+        summary = "There were no wishes to match yet."
+    steps = list(result.get("steps") or [])
+    steps.append({
+        "id": "match", "title": "Find Wish Makers", "summary": summary,
+        "qloo_calls": None, "cached": None, "errors": 0,
+    })
+
+    timings = dict(result.get("timings") or {})
+    timings["matching_ms"] = matching_ms
+    timings["request_ms"] = elapsed_ms(started)
+    qloo_log = result.get("qloo_log") or []
+    with get_conn() as conn:
+        require_person(conn, person_id)
+        conn.execute(
+            "insert into agent_log (person_id, step, log) values (%s, 'agent', %s)",
+            (person_id, Jsonb({"steps": steps, "timings": timings, "qloo_log": qloo_log})),
+        )
     return {
         "steps": steps,
-        "timings_ms": timings,
-        "portrait": portrait_result.get("items") or [],
-        "wishes": wishes,
-        "follow_up": follow_up,
+        "timings": timings,
+        "portrait": result.get("items") or [],
+        "wishes": saved_wishes,
+        "follow_up": result.get("follow_up"),
         "matches": matches,
         "qloo_log": qloo_log,
     }

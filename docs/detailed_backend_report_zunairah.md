@@ -1,4 +1,4 @@
-# Genie: Backend Work Report, Days 1 to 3
+=# Genie: Backend Work Report, Days 1 to 3
 
 **Project:** Genie, an AI agent that learns who someone was through what they loved, suggests personal wishes, and finds the people who can fulfil them. Built on Qloo's taste graph for the Qloo Agentic Hackathon.
 **Author:** Zunairah
@@ -510,26 +510,22 @@ The Qloo hackathon key is stored only in `.env`. The search path, the key header
 
 ### D.2 Second probe: entity types and tag counts
 
-| Query | Top results (name, type, number of tags) | Reading |
-|---|---|---|
-| Lag Jaa Gale | A film (4 tags), another film (88), then hotels and a mall | The song is not an entity |
-| Lag Jaa Gale Lata Mangeshkar | A film, Lata Mangeshkar as a person (58) and as an **artist (43)**, an album (0), a place | The artist appears once the singer is named |
-| Ghantasala | A college (place), a film, **Ghantasala as an artist (42)**, two places | The singer exists, but ranks third |
-| Ghantasala singer | Authors named Singer, a place, a film | Adding words to the query makes results worse |
-| haleem | Five restaurants (places) | The dish is not an entity |
-| Hyderabadi cuisine | A place named "Hyderabadi cuisine" (6 tags), then restaurants | No cuisine entity seen |
-| Charminar | Two places (123 and 80 tags), a restaurant, a locality (0), a restaurant | The landmark is found as a place |
-| Irani chai | A **film** (56), then cafes | The drink is not an entity, and a film shares its name |
+| Finding | Detail |
+|---|---|
+| Songs | Qloo has no song entities. A song resolves only through its artist |
+| Dishes and drinks | Qloo has no dish entities. A plain search returns restaurants, so the engine resolves dishes as taste tags instead |
+| Mixed types | Search results mix films, people, places, brands, and albums, so a result must be chosen by entity type |
+| Query wording | Adding descriptive words to a query made results worse |
 
 **Entity types seen:** movie, place, person, artist, album, author, locality.
 
 ### D.3 What this means
-1. **Songs are not entities.** A song resolves only through its artist, so the artist must be named by the family or inferred (and then labelled as "likely", with lower confidence).
-2. **Dishes and drinks are not entities.** They resolve only to restaurants and cafes. A restaurant must not be stored as if it were the dish. Dish items should stay at the name level and be labelled honestly (matches through them show `basis: text`).
+1. **Item 1 (songs)**: the engine resolves a song through its artist (fallback level 3) and labels it "via the artist".
+2. **item 2 (dishes)**: dishes resolve as taste tags through Qloo's tags endpoint (6 of 6 test dishes), and are never stored as a restaurant. The earlier advice to keep dishes unresolved is superseded.
 3. **Results must be chosen by type.** Picking the first result whose `types` contains the wanted type works today without any extra parameter: artist for music, place for food and places, movie for film. Prefer `artist` over `person` when both appear, as with Lata Mangeshkar.
 4. **Do not add descriptive words to a query.** "Ghantasala singer" returned authors.
 5. **Entities carry many tags:** artists 42 to 58, places 80 to 170. Our tag-overlap scoring has only been tested with hand-made tags. Real entities will share many broad tags, so before relying on tag overlap it needs calibrating on real data (a minimum number of shared tags, and less weight for very common tags). Until then, a match on the **same entity** is the most trustworthy Qloo signal.
-6. **Definition of "resolved".** The coverage test's 70 percent pass mark should count a query only if it returns the right entity of the right type. By that rule, 8 of 8 artist queries resolve (artist type confirmed directly for Lata Mangeshkar and Ghantasala, the others judged by name), while 0 of 1 songs and 0 of 5 dish or cuisine queries resolve as what a family means.
+6. **Definition of "resolved".** Item 6 (coverage): the engine's own coverage test reports 40 of 40 inputs resolving through the real ladder (33 exact, 1 alternate spelling, 6 through an artist or parent). Strictly, songs resolve only at artist level.
 7. **Telugu coverage:** the singer Ghantasala exists as an artist, which is encouraging for the Hyderabad persona. Only one Telugu query has been tested.
 8. **Wish Book risk:** the themes come from Qloo tags, so a song resolved to the wrong entity would produce wrong themes (for example "Romance" and "Drama" from a film).
 
@@ -541,7 +537,7 @@ The Qloo hackathon key is stored only in `.env`. The search path, the key header
 
 ### D.5 What follows
 - The plan's fallback ladder fits the findings: a song falls back to its artist, and a dish falls back to a name-level item.
-- `enrich_makers.py` is written to attach Qloo entities and tags to makers. It waits for the engine's `resolve()`, and it must follow the rules above, so that tags like "haleem" are not turned into restaurant entities.
+- The type rules and the fallback ladder are implemented in the engine. The remaining work on the backend side is storing the new fields and matching on tag names (Section K).
 
 ## E. Decisions (new)
 
@@ -570,16 +566,18 @@ The Qloo hackathon key is stored only in `.env`. The search path, the key header
 - Songs and dishes cannot be resolved directly in Qloo (Section D).
 
 ## H. What remains
-1. **Engine endpoints:** one that takes quick facts and Circle answers, calls the engine to build the portrait, saves it, and returns the Qloo call log, and one that generates wishes. Reaction Mode needs an endpoint that records reactions. These wait for Umaima's module path and function signatures.
-2. Update `docs/engine-contract.md` with the field mapping and type rules (Section D), and run `enrich_makers.py` once `resolve()` exists.
-3. Calibrate tag-based matching on real enriched makers.
-4. **Deployment** to Render, with every environment variable and the frontend address in the allowed origins.
-5. Hand Alizah the screen list, and decide who builds the maker accept and decline page.
-6. README setup steps, license check in the About panel, and the Devpost description.
-7. Rotate the admin token, then pin the demo personas.
-8. Final judge test with 10 varied people, including: the in-person fix, the printed page showing script text as plain text, Save as PDF, the revoked link returning 404, the secret checks, and the reset of the test tag on `m01`.
-9. Optional: configure Brevo and run the two email tests.
-10. Submit by Oct 29.
+
+1. Run the database migration for the engine fields, add the new files, and run the short integration check (K.5).
+2. Run enrich_makers.py to attach Qloo data to the makers, then calibrate tag-based matching on the real result.
+3. Create the "Try the demo" flow: pin and clone a pre-warmed demo persona.
+4. Reaction Mode endpoint (signature agreed with Umaima on Day 6), and the Bedside Kit if time allows.
+5. *Deployment* to Render, with every environment variable (including the Qloo and AI keys) and the frontend address in the allowed origins.
+6. Hand Alizah the updated screen list and API contract.
+7. README setup steps, license check in the About panel, and the Devpost description.
+8. Rotate the admin token, then pin the demo personas.
+9. Final judge test with 10 varied people, including the in-person fix, the printed page showing script text as plain text, Save as PDF, the revoked link returning 404, the secret checks, and the reset of the test tag on maker m01.
+10. Optional: Brevo email setup.
+11. Submit by Oct 29.
 
 ## I. Reusable text (new)
 
@@ -591,3 +589,106 @@ Qloo's search mixes entity types, and it has entities for artists and places but
 
 **Devpost, "Safety and privacy" (addition):**
 A family's data expires automatically, and they choose how long it stays. Expired data is unreadable immediately, deletion removes everything linked to a person in one step, and shared keepsakes can be switched off at any time. Every page that shows user text escapes it, and sensitive endpoints are rate limited.
+
+# Genie Report: Engine Integration Section (Oct 18 and 19)
+
+**Rules for the public repo copy.** Qloo's terms forbid publishing Qloo response data, and Umaima's notes say that includes result names, IDs, and tag counts. This section follows that rule: it names no Qloo results and gives no tag counts or match scores. Keep Swagger output, test persons, and tokens out of the repo as well.
+
+---
+
+## K. Engine integration (Oct 18 and 19)
+
+### K.1 What arrived
+Umaima's engine (Days 1 to 7) is in `backend/engine/`. The backend calls it and stores what it returns. The functions the backend uses are: `run_agent` (portrait, then wishes, in one call, with visible steps and timings), `pick_reaction_cards` and `apply_reactions` (Reaction Mode), `side_by_side` (the comparison with a general AI), and `generate_bedside_kit`. The engine never touches the database and never raises an error to its caller. Her own documents (`Engine.md`, `engine-contract.md`, `coverage-report.md`, and her Days 1 to 7 report) describe it.
+
+### K.2 What the contract changed on the backend side
+
+| Finding | Change made |
+|---|---|
+| Portrait items carry `matched_name` ("Matched via ...") | New column, accepted on save and returned on read |
+| Wishes carry `kind`, `maker_type`, `tags`, `basis`, `why`, `affinity` | New columns on `wish`, accepted on save and returned on read |
+| Food items hold a taste-tag ID in the entity field | The matcher treats it as a tag, not an entity |
+| Tag IDs differ between Qloo endpoints, and entity IDs differ in letter case | Tags are compared by name first, and IDs in lower case |
+| `maker_type` values are musician, home cook, storyteller, volunteer | An exact type match adds a bonus, and a wish for one maker type only goes to that type |
+| Seeded maker `m14` had the type "volunteer group" | Corrected to "volunteer" |
+| The seeded home cook did not offer remote wishes, but the engine's food wish is a recorded recipe | Set to remote |
+| The public makers list exposed Qloo entity IDs | Removed from the public list |
+| An empty engine result could have deleted a saved portrait or wishes | Empty results are never saved over existing data |
+| Wish polish by an AI is off by default in the engine | The backend passes `use_llm` only when `WISH_POLISH=1` |
+
+### K.3 Endpoints added
+
+| Endpoint | What it does |
+|---|---|
+| `POST /persons/{id}/portrait/build` | Builds and saves the portrait from quick facts plus the family's Circle answers |
+| `POST /persons/{id}/wishes/generate` | Generates and saves 3 to 5 wishes from the saved portrait |
+| `POST /persons/{id}/agent/run` | Portrait, wishes, and matching in one call. Returns the engine's steps (with a final "find Wish Makers" step added by the backend), timings, the portrait, the wishes, the matches, and the Qloo call log |
+| `POST /persons/{id}/match-all` | Matches every wish of the person |
+| `POST /persons/{id}/reaction/cards` | The next few items to show in Reaction Mode (the caller sends the `tried` list) |
+| `POST /persons/{id}/reaction/apply` | Applies "lit up" or "no reaction" taps and updates the portrait |
+| `POST /persons/{id}/compare` and `GET /persons/{id}/compare` | Runs the side-by-side with a general AI, stores it, and reads back the last result |
+| `GET /persons/{id}/bedside-kit` | Builds the Bedside Kit from the saved portrait |
+| `GET /persons/{id}/agent-log` | The stored steps and call logs, so the interface can show them after a reload |
+
+The stateless routes in `routers/agent_demo.py` (Umaima's) run the engine without storing anything and power the "try it yourself" demo.
+
+### K.4 Design decisions
+
+| Decision | Reason |
+|---|---|
+| Separate short steps, plus one combined call | The interface can show visible progress step by step, and a one-click demo is still possible |
+| The engine runs in a worker thread with a time limit | A slow Qloo or AI response never blocks the server, and a timeout gives a calm message and never a raw error |
+| The database connection is released before the engine call | A slow call never holds a connection |
+| Regenerating wishes keeps any wish that already has a request in progress | A family's requests are never deleted |
+| The comparison result is stored | A demo person can show it again without another AI call |
+| `tried` lives in the frontend session | The engine does not remember it, and no column is needed |
+| Rate limits cover every agent route (40 per hour per address, and 12 per hour for the comparison) | Each call spends Qloo quota, and the comparison also spends an AI call |
+| The privacy notice names the third-party AI and says what the comparison sends | Transparency, as the plan requires |
+
+### K.5 Test results (Oct 19)
+
+| # | Check | Result |
+|---|---|---|
+| 1 | One call builds the portrait: the quick fact and the Circle answers were gathered, every name matched in Qloo (one through an artist), and the portrait was saved with source labels and confidence | Pass |
+| 2 | Wishes: 5 were generated (4 remote, one in-person and last), saved with all the extra fields, and read back | Pass |
+| 3 | The combined call returns the engine's real steps plus the backend's matching step, and timings for each stage. With a warm cache the whole request took about 1.6 seconds | Pass |
+| 4 | Matching: every wish received at least one suggestion. The storyteller wish received storytellers labelled as matched by what they offer. No match was labelled as coming through Qloo, because no maker has Qloo data yet | Pass for behaviour. Qloo-based matching is not yet exercised on real maker data |
+| 5 | Reaction cards: three cards were returned from the three items the family named | Pass |
+| 6 | Reaction apply: the item that lit up became "reacted" with higher confidence. A "no reaction" on an item the family told us left it unchanged, as designed. New guessed items were added with the "likely" label, and the message was the kind one. The saved portrait was read back | Pass |
+| 7 | Comparison: Genie's side was complete (five wishes with taste tags, plus a discovery wish with its reason and score). **The general AI's side was unavailable** ("did not answer in time"). The result was stored and read back | Partly verified. The general AI side needs an AI key configured, then a re-run |
+| 8 | Bedside Kit: the playlist was ordered (reacted, told, then labelled guesses), with small room changes, visitor suggestions, a care-team note on food, and the medical disclaimer | Pass |
+| 9 | The public makers list no longer contains Qloo entity IDs. The home cook offers remote wishes, and `m14` has the type "volunteer" | Pass |
+| 10 | Rate limits for the agent and comparison routes, and the protection against empty engine results | Not run |
+
+### K.6 Issues found while reviewing the results
+1. **The general AI side of the comparison was unavailable.** The comparison is the hackathon's central proof, so it needs the AI key (`LLM_API_KEY`, `LLM_MODEL`, `LLM_BASE_URL`) in `.env` and, later, on the host. A quick check is `python llm_ping.py` from the `backend` folder.
+2. **Matching ignored the artist a song was matched through.** When a song resolves through its artist, a maker who lists that artist should match. The fix adds `matched_name` to matching.
+3. **Broad descriptor tags would create false "shared taste" matches.** Real entities carry descriptive tags (adjectives, instruments) that almost every artist shares. The fix counts only genre, influence, and dish tags as shared taste. This must be re-checked when makers are enriched.
+4. **Test people were left in the database** and must be deleted.
+
+### K.7 Known limits
+- The first call after a restart can take 10 seconds or more for each uncached Qloo request, and the interface needs a calm waiting state.
+- Tag-based matching has not yet been calibrated on real enriched makers.
+- The engine's disk cache is wiped when a free host redeploys, so a brand-new person is slower than a pinned demo person.
+- The comparison depends on a live AI call and can be unavailable.
+- Reaction Mode has no memory of the tried list, by design.
+
+### K.8 What remains
+1. Add the AI key, re-run the comparison, and record the result.
+2. Apply the two matching fixes (K.6, items 2 and 3).
+3. Run `enrich_makers.py`, then match again and look for matches labelled as coming through Qloo.
+4. "Try the demo": pin a prepared persona and add a route that clones it.
+5. Deployment to Render with every key and variable, then a warm-up run.
+6. The unverified checks: the Wish Book print page showing script text safely, Save as PDF, the revoked share link, the secret checks, and the admin token rotation.
+7. README setup steps, Devpost description, and submission by Oct 29.
+
+### K.9 Reusable text
+
+**Devpost, "How we built it":**
+The backend calls our agent engine in a worker thread with a time limit, stores the portrait, wishes, and a private log of every step, and then matches each wish to Wish Makers. Each stage reports its real timing, so the interface can show what the agent did without inventing anything.
+
+**Devpost, "Safety and privacy" (addition):**
+Typed answers go to a third-party AI service only to pick out the names of songs, dishes, and places. If a family opens the comparison with a general AI, we tell them exactly what is sent. Qloo's data stays in our private database and is never published.
+
+**README, Engine section (backend side):**
+The backend calls the engine in `backend/engine/` through `POST /persons/{id}/agent/run` (or the separate portrait and wishes endpoints), with a time limit on every call. Set `QLOO_API_KEY` and, optionally, the `LLM_*` variables and `WISH_POLISH` in `backend/.env`.
