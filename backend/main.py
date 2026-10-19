@@ -3,6 +3,7 @@ import os
 from contextlib import asynccontextmanager
 from routers import agent
 from routers import agent_demo
+from engine_cache_store import restore_safely
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
@@ -39,6 +40,9 @@ async def purge_loop():
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     task = asyncio.create_task(purge_loop())
+    restore_task = None
+    if os.environ.get("ENGINE_CACHE_RESTORE", "1") == "1":
+        restore_task = asyncio.create_task(asyncio.to_thread(restore_safely))
     yield
     task.cancel()
 

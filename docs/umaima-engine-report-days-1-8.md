@@ -1,11 +1,11 @@
-# Genie: Engine Work Report, Days 1 to 7
+# Genie: Engine Work Report, Days 1 to 8
 
 **Project:** Genie, an AI agent that learns who someone was through what they loved, suggests personal wishes, and finds the people who can fulfil them. Built on Qloo's taste graph for the Qloo Agentic Hackathon.
 **Author:** Umaima
 **Role in the team:** Agent and Qloo engine
-**Dates of work:** Oct 15 to 18, 2026
+**Dates of work:** Oct 15 to 19, 2026
 **Team:** Umaima (agent and Qloo engine), Alizah and Zunairah (frontend and backend, roles swapped from the plan: Alizah on screens and copy, Zunairah on backend, data, deployment and submission)
-**Companion documents:** `docs/Engine.md` (how the engine works), `docs/engine-contract.md` (exact input and output shapes), `docs/coverage-report.md` (Qloo coverage test).
+**Companion documents:** `docs/Engine.md` (how the engine works), `docs/engine-contract.md` (exact input and output shapes, v1.5), `docs/coverage-report.md` (Qloo coverage test).
 
 ---
 
@@ -13,7 +13,7 @@
 
 Genie has three layers: the frontend, the backend and database, and the engine (this report). The engine is the part that makes Genie depend on Qloo. It turns what a family tells us into a Taste Portrait, turns the portrait into wishes, learns from a person's reactions, compares itself honestly with a general AI, builds a Bedside Kit for care rooms, explains what it did, and records every Qloo call so the interface can show it.
 
-The engine is plain Python in `backend/engine/`. It never touches the database: the backend calls it and stores what it returns. It never raises errors to its caller, so a Qloo or LLM outage degrades the result and never breaks the app. The feature freeze starts after Day 7: from here the engine only gets fixes, polish and tests.
+The engine is plain Python in `backend/engine/`. It never touches the database: the backend calls it and stores what it returns. It never raises errors to its caller, so a Qloo or LLM outage degrades the result and never breaks the app. The feature freeze started after Day 7. Day 8 was polish only: a demo that cannot fall over, honest behaviour on odd inputs and outages, copy the team can read aloud, and a repo free of Qloo data and secrets.
 
 ## 2. What was built
 
@@ -60,6 +60,22 @@ The engine is plain Python in `backend/engine/`. It never touches the database: 
 - **Bedside Kit** (`kit.py`, `POST /agent/bedside-kit`): for wishes in a care room. A gentle playlist (reacted first, then told, then at most 3 labelled guesses), small changes to the room, and what visitors can do, all from templates so every line can be read aloud and approved. Comfort and connection only, never treatment, and it ends with "Genie is not a medical service." Food suggestions always say to ask the care team first. Every suggestion says which portrait item it came from, or "general".
 - **Clue Box** (photo and voice upload) was not built: the plan makes it "only if on schedule", and it is first on the cut list.
 
+### Day 8: polish, resilience and a clean repo (Oct 19)
+Day 8 added no features. Everything below came from checking the engine against odd inputs, outages and a real read of its own copy.
+
+- **Private cache pre-warm store.** Render's free disk is wiped on every redeploy, and Qloo's terms forbid keeping response data in the public repo, so a redeploy would start cold. `backend/engine_cache_store.py` copies the engine's disk cache into a private table, `engine_cache` (migration `006_engine_cache.sql`, row-level security on), with four commands: `init`, `snapshot`, `restore` and `stats`. `main.py` restores the table into the cache folder at server start, in a background thread, controlled by `ENGINE_CACHE_RESTORE=1`. A restore never blocks or breaks start-up. A path check refuses any stored key that would write outside the cache folder. The table holds only hashed request keys and response bodies, with no person data. The first snapshot held 41 files (about 1.9 MB), taken from a clean cache that held only the two demo personas.
+- **Second demo person.** `engine/personas.py` holds the two fictional demo people: Nani (born 1948, Hyderabad, Hindi: Hindi film songs, haleem, Charminar) and Jun (born 1992, Seoul, Korean: K-pop, tteokbokki, Busan, the sea). Jun's region matches the city of the two sample Korean Wish Makers, so Jun's in-person wish can be matched to a local maker. `engine/prewarm_run.py` runs both through every entry point twice and checks that pass 2 is fast.
+- **Odd-input and outage checks** (`engine/live_odd.py`, 43 live checks). 20 odd names through `resolve` (empty, whitespace, one letter, `None`, digits, emoji, punctuation, script tags, SQL, 5000 characters, Telugu, Hindi, Arabic and Korean script, mixed scripts, a misspelt film, an artist typed as a dish, an unknown domain, a newline). 16 odd people and inputs through `run_agent` (empty, `None`, text and future birth years, an unknown language, 40 junk favourites, duplicates, missing keys, wrong value types in circle answers, very long free text, a phone number and surname, answers that are not a list). Junk through Reaction Mode, the Bedside Kit and the comparison. The checks assert the contract, not particular results: never raises, valid shape, domains and labels from the allowed lists, at most 30 items, no duplicates, wishes in the right order, no clinical wording or exclamation marks, bounded time. `--outage qloo` and `--outage llm` repeat the agent and the comparison with a service pointed at nothing.
+- **Fixes the checks found.**
+  1. **The 30-item cap.** The level-4 guesses were added after the told items and never trimmed (36 items). Now trimmed to 30, guesses first.
+  2. **A dead Qloo took 33 seconds to fail.** The thread pool's `with` block kept waiting for stuck calls after the 20 second limit, and every call retried with its full timeout. Now the portrait builder abandons stuck calls at its limit (they finish in the background and only fill the cache), the client has a separate 4 second connect timeout, and a shared circuit breaker skips uncached Qloo calls for 30 seconds after 3 timeouts or network errors in a row (the cache is still served, and any answer resets the count).
+  3. **One failed resolve could drop all later results.** Each result is now handled on its own.
+  4. **Heavy-theme guesses.** A real run showed a guessed film for an older person carrying tags about communal conflict, and another with an ageing-related archetype tag. The tag filter now also drops heavy-theme words, and `is_heavy()` makes the portrait builder skip the whole level-4 guess, not only its tags. The next hit takes its place. Told items are never skipped.
+  5. **Step wording.** "Gathered 1 names" and "Matched all 1 in Qloo" now read "Gathered 1 name" and "Matched it in Qloo."
+- **Copy audit** (`engine/copy_audit.py`). Writes every family-facing sentence the engine can produce (steps, wishes, follow-ups, reaction prompts and messages, the Bedside Kit, the comparison note) for four scenes (Nani, Jun, a thin portrait, an empty portrait) into a git-ignored file for the team read-aloud, and flags clinical words and exclamation marks. The file can contain Qloo discovery names, so it is never committed.
+- **Repo hygiene.** Secret scan of the repo and its history (the `.env` file, the Gemini key prefix and the Qloo key prefix): nothing found. `.gitignore` gains `_review/`. `.env.example` gains `ENGINE_CACHE_RESTORE`.
+- **New offline suites:** `engine/test_day8.py` (21 checks) and `backend/test_cache_store.py` (8 checks).
+
 ## 3. Test evidence
 
 | # | Check | Result |
@@ -81,8 +97,26 @@ The engine is plain Python in `backend/engine/`. It never touches the database: 
 | 15 | Bedside Kit live for Nani | PASS: playlist, small changes, visitor suggestions, care note |
 | 16 | LLM polish on seven fictional personas | 26 of 33 rewrites accepted, every rejection explained |
 | 17 | Offline tests never call the network | Confirmed (LLM is stubbed in every suite) |
+| 18 | Day 8: the six suites above re-run after all Day 8 changes | 167 of 167 pass |
+| 19 | Day 8: `test_day8.py` (cap, heavy-theme skip, tag filter, no waiting on stuck calls, circuit breaker, step wording) | 21 of 21 pass |
+| 20 | Day 8: `test_cache_store.py` (path safety) | 8 of 8 pass |
+| 21 | Day 8: `live_odd.py`, first run | 42 of 43. The 40-junk-favourites case returned 36 items, above the 30-item cap. |
+| 22 | Day 8: `live_odd.py`, after the fixes | 43 of 43. The longest cases took about 20 seconds, which is the portrait limit. |
+| 23 | Day 8: Qloo outage, connection refused | Pass, 7.6 seconds (9.3 before the fixes) |
+| 24 | Day 8: Qloo outage, silent black hole | Pass, 13.6 seconds (33.0 before the fixes) |
+| 25 | Day 8: LLM outage (`--outage llm`) | Pass. The comparison says the general AI is unavailable, and Genie's side is complete. |
+| 26 | Day 8: LLM provider errors seen during live testing | Quota errors (429) logged six times in the first odd-input run, and one overload error (503) in the second. The engine carried on with its built-in fallbacks and those checks passed (apart from the cap bug). The comparison screen's message under a quota error was not seen live. It is covered by the offline suite and check 25. A new API key (a new quota) cleared the quota problem. |
+| 27 | Day 8: `prewarm_run.py` on a cold cache | Both personas OK, no Qloo errors. Nani 24 to 30 seconds, Jun 16 to 27 seconds. |
+| 28 | Day 8: `prewarm_run.py` on a hot cache | Both OK, 29 to 91 milliseconds |
+| 29 | Day 8: cache store round trip: `init`, `snapshot` (41 files, 1.9 MB), `stats` (41 rows), delete the local cache, `restore` (41 files), `prewarm_run.py` | Pass. The first pass after a restore took 0.25 to 0.35 seconds, with no Qloo calls. |
+| 30 | Day 8: `live_checks.py` `--agent`, `--reaction`, `--compare`, `--kit` | PASS (regression) |
+| 31 | Day 8: `copy_audit.py` | First run: 4 flags, all the mandatory "not a medical service" note (a false positive of my own linter, which now exempts it). After the fix: 0 flagged in 139 lines. The heavy-theme guesses no longer appear. |
+| 32 | Day 8: secret scan (`backend/.env` tracked or in history, the Gemini key prefix, the Qloo key prefix) | Nothing found |
+| 33 | Day 8: `uvicorn` start-up shows `[engine cache] restored N files` after the local cache is deleted | Pending |
+| 34 | Day 8: Swagger after the fixes: `/agent/run`, `/agent/compare`, `/agent/bedside-kit`, `/agent/reactions` for both personas | Pending |
+| 35 | Day 8: team read-aloud of the copy review | Pending |
 
-Total offline checks: 167.
+Total offline checks: 188 in the engine (167 + 21), plus 8 for the cache store.
 
 ## 4. Decisions and reasons
 
@@ -104,8 +138,19 @@ Total offline checks: 167.
 | Qloo tags with ageing, end-of-life or identity-label wording are dropped | The interface tone rules forbid clinical or dramatic wording, and a guess should not attach a religion label to a person's portrait. |
 | Stateless routes alongside the stored flow | Judges can type their own person live without an account. |
 | The general AI gets the same facts and no Qloo data, and is held to the same tone filter | A comparison is only credible if it is fair. If the baseline cannot answer, we say so. |
-| The Bedside Kit never claims an effect | The plan: comfort and wellbeing, never treatment. Food always says to ask the care team. |
+| The Bedside Kit never claims an effect | The plan: comfort and wellbeing, never treatment. Food always says to ask the care team first. |
 | Clue Box not built | First on the cut list, and the feature freeze starts after Day 7. |
+| The cache snapshot lives in the private database, never in the repo | Qloo's terms allow private caching and forbid public storage. |
+| The snapshot is taken only from a clean cache that holds the demo personas | The cache can hold what odd-input or judge runs typed. |
+| The restore runs in a background thread and never raises | A database problem must never stop the server from starting. |
+| The cache store lives in `backend/`, not in the engine | The engine never touches the database. |
+| A circuit breaker in the Qloo client (3 failures, 30 seconds, cache still served) | With Qloo down, every call used to wait out all its retries. |
+| A separate 4 second connect timeout | Connecting to a dead host should not cost 10 seconds per attempt. |
+| The portrait builder abandons stuck calls at its 20 second limit | Leaving the thread pool's `with` block used to wait for them anyway. |
+| A level-4 guess with ageing, end-of-life or heavy-theme tags is skipped, not just stripped of tags | A guess is optional, and a film about communal conflict does not belong on a portrait for someone near the end of life. Told items are never skipped. |
+| Odd-input tests assert the contract, not particular results | Results depend on Qloo's data. The contract does not. |
+| The outage test uses one unknown favourite | With three unknown told items a portrait is not "thin", and the engine is right to still make wishes. |
+| The comparison cache only helps for a demo person's exact inputs | The general AI's prompt includes the favourites and the family notes. The demo buttons must send the persona's exact inputs. |
 
 ## 5. Challenges
 
@@ -120,32 +165,42 @@ Total offline checks: 167.
 9. **Qloo tags were not safe to show as they came.** A real response carried ageing wording and a religion-plus-family label on guessed items. Fix: a tag-name filter in `clean_tags`, with tests.
 10. **A short sentence became an item.** Without the LLM, "She sang along to Queen" passed the name splitter (five words) and showed up as a "not in Qloo" favourite. A new test caught it. Fix: segments with sentence words are not names.
 11. **A merge conflict** on `routers/agent.py`: two people had written a router with the same name. Fix: both kept, the stateless routes moved to `routers/agent_demo.py`.
+12. **The portrait could exceed the 30-item cap** (Day 8). Found by the odd-input run (36 items). Fix: trim to 30, dropping guesses first.
+13. **A dead Qloo took 33 seconds to fail** (Day 8). Two causes: the thread pool waited for stuck calls, and every call retried with its full timeout. Fix: abandon stuck calls, add a connect timeout and a circuit breaker. Now about 14 seconds.
+14. **One failed resolve could drop every later result** (Day 8). A single `try` wrapped the whole results loop. Fix: each result is handled on its own.
+15. **A guessed film carried heavy tags** on a portrait for an older person (Day 8). The tag filter alone was not enough, because the film itself was a poor guess. Fix: a wider filter, and the whole guess is skipped.
+16. **My first outage test was wrong** (Day 8). It expected a follow-up question when three unknown told items came back, but that portrait is not thin. Fix: the outage test uses one favourite.
+17. **My copy linter flagged the mandatory medical note** (Day 8) because the note contains the word "medical". Fix: the note is exempt, the rest is still linted.
+18. **The cache store failed at first** (Day 8): the table did not exist yet. Fix: an `init` command that creates it through the same connection the backend uses, so nobody needs the Supabase screen. A small bug (the usage text printing after `init`) was fixed the same day.
+19. **The LLM free tier ran out of quota during live testing** (Day 8). The engine degraded as designed, and a new key cleared it. Lesson: the live odd-input run spends quota, so it must not be run near a demo.
 
 ## 6. Known limits
 
-- Level 4 is audience-popularity for the person's age bracket, region and language, not era-specific. It only runs for thin portraits and is always labelled "likely". With only two favourites it still adds six guesses, and some can look odd or heavy for the person.
+- Level 4 is audience-popularity for the person's age bracket, region and language, not era-specific. It only runs for thin portraits and is always labelled "likely". With only two favourites it still adds up to six guesses, and some can look odd for the person (an unfamiliar title, for example). Ageing, end-of-life and heavy-theme guesses are skipped.
+- The heavy-theme skip covers level-4 guesses only. Discovery and Reaction Mode artists are not screened by theme.
 - Discovery artists can be unexpected for a given taste. They are labelled likely and the family decides.
 - Qloo has no song or dish entities, so a song is matched only at artist level.
 - Some artists have no taste tags in Qloo, so items resolved to them carry little data into matching.
-- Free-tier LLM latency varies. The cache and breaker make it safe, but the first call after a pause can fail.
-- The comparison's general AI is the same free-tier model the engine uses for its helper. A stronger general model would write better prose, but would still have no taste links, labels or maker mapping. Its side can be unavailable if the LLM is slow.
+- Free-tier LLM latency and quota vary. The cache and breaker make it safe, but a person typed live can get a comparison with `available: false`.
+- A person typed live is cold: 15 to 30 seconds. The frontend needs a calm waiting state and a timeout above the backend's 40 seconds.
+- The comparison's general AI is the same free-tier model the engine uses for its helper. A stronger general model would write better prose, but would still have no taste links, labels or maker mapping. The two demo personas' answers are in the private cache snapshot, but only for their exact inputs.
 - The Bedside Kit lists names to search for in a music app, not recordings, and most names are artists.
-- The Qloo cache is wiped on every Render redeploy, so the first run of a demo person after each deploy is uncached. Run it once after each deploy. A private pre-warm store comes on Day 8.
+- The private cache snapshot is only as clean as the cache it was taken from, and it must be re-taken from a clean demo-persona cache if the personas change.
 - Reaction Mode: the engine does not remember the `tried` list, and the refresh adds artists only. The interface must provide the Stop button.
 - The tag filter drops any tag whose name contains a listed word, so a genre with such a word in its name loses that tag.
-- Circle answer keys are assumed to contain `music`, `food`, `place` or `film`. The "what made them light up" answer is not mapped to a domain yet.
+- The Wish Circle answer keys are `music`, `food`, `place`, `film` and `joy`. The engine maps the first four. `joy` ("what made them light up") is read only when the LLM is on.
 - Parking lot (not built, per the feature freeze): Clue Box, a `discovered` field on discovery wishes, cross-domain additions in Reaction Mode, a cap on how many tags the interface shows per item.
-- Screens for the "what Genie did" panel, Reaction Mode, the comparison and the Bedside Kit, and the first live deploy, belong to the frontend and backend owners and have not started.
+- Screens for the "what Genie did" panel, Reaction Mode, the comparison and the Bedside Kit, and the first live deploy, belong to the frontend and backend owners.
 
 ## 7. What is next
 
 | Day | Engine task |
 |---|---|
-| 8 | Polish only: caching and the private pre-warm store, timeouts, error states, second demo person, odd-input tests, copy read-aloud with the team |
-| 9 | Judge test with 10 varied people, technical README and Qloo notes for the Devpost description |
+| 8 | Done (see above). Remaining: the three pending checks in section 3 (rows 33 to 35), then the commit. |
+| 9 | Judge test with 10 varied people end to end. Technical README and Qloo notes for the Devpost description. Re-take the cache snapshot only from a clean demo-persona cache. Do not run `live_odd.py` near the demo. |
 | 10 | Final bug fixes with the team, demo video if there is time |
 
-Open questions for the team are listed in `docs/engine-contract.md` ("Status of the open questions").
+Open questions for the team are listed in `docs/engine-contract.md` ("Status of the open questions"). Since Day 8 the Wish Circle answer keys are answered (see above).
 
 ## 8. Reusable text
 
@@ -155,5 +210,8 @@ Genie uses Qloo four ways. It resolves every favourite a family names to a Qloo 
 **For the Devpost description, Challenges:**
 Qloo has entities for artists and places, but not for individual songs or dishes. Genie resolves by type, moves from a song to its artist, treats dishes as taste tags, and labels anything it could not find as "not in Qloo" instead of hiding it. Qloo's own tags are not always right for a family's screen, so we filter wording about ageing and end of life before anything is shown. Every wish says whether it came from what the family told us or from a Qloo guess. We also measured an LLM that rewrites wish wording: our safety checks accepted it about four times in five, but we kept the reviewed templates as the default, because this is a product where every sentence should be one we chose. And we made the comparison with a general AI fair: it gets the same facts, no Qloo data, and the same tone rules, and if it cannot answer we say so.
 
+**For the Devpost description, Challenges (Day 8 addition):**
+We made the agent safe to demo, not only to build. Qloo's answers are cached privately and restored when the server starts, so a redeploy does not start cold. A circuit breaker makes the agent fail fast and honestly when a service is down, and we test that by pointing it at a dead address. We fed it odd input on purpose (empty names, emoji, scripts in four languages, injected code, 5000-character answers) and made it a rule that it never crashes. We also found that a guessed film for an older person could carry tags about communal conflict, so Genie now skips any guess with heavy or end-of-life themes instead of showing it.
+
 **For the README, Engine section:**
-The engine is in `backend/engine/`. Set `QLOO_API_KEY` (and optionally `LLM_API_KEY`, `LLM_MODEL`, `LLM_BASE_URL`) in `backend/.env`. The backend calls `run_agent(person, inputs)`, and for the other screens `pick_reaction_cards`, `apply_reactions`, `side_by_side` and `generate_bedside_kit`. Run `python engine\test_offline.py`, `test_wishes.py`, `test_agent.py`, `test_reaction.py`, `test_sidebyside.py` and `test_kit.py` for offline tests, and `python engine\live_checks.py` for checks against real Qloo. See `docs/Engine.md`.
+The engine is in `backend/engine/`. Set `QLOO_API_KEY` (and optionally `LLM_API_KEY`, `LLM_MODEL`, `LLM_BASE_URL`) in `backend/.env`. The backend calls `run_agent(person, inputs)`, and for the other screens `pick_reaction_cards`, `apply_reactions`, `side_by_side` and `generate_bedside_kit`. Run `python engine\test_offline.py`, `test_wishes.py`, `test_agent.py`, `test_reaction.py`, `test_sidebyside.py`, `test_kit.py` and `test_day8.py` for offline tests, and `python engine\live_checks.py` for checks against real Qloo. See `docs/Engine.md`.

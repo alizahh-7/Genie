@@ -4,6 +4,7 @@ import hashlib
 import json
 import os
 import re
+import threading
 import time
 from pathlib import Path
 
@@ -20,15 +21,62 @@ BASE = os.environ.get("QLOO_API_URL", "https://hackathon.api.qloo.com").rstrip("
 CACHE_DIR = Path(__file__).resolve().parent / "_cache"
 CACHE_DIR.mkdir(exist_ok=True)
 
+CONNECT_TIMEOUT = 4      # seconds to reach Qloo. The read timeout (default 10) is separate.
+BREAKER_FAILS = 3        # this many timeouts/network errors in a row ...
+BREAKER_SECONDS = 30     # ... and Qloo calls are skipped for this long (cache still served)
+_LOCK = threading.Lock()
+_BREAKER = {"fails": 0, "until": 0.0, "kind": "network"}
+
+
+def _breaker_open():
+    return time.time() < _BREAKER["until"]
+
+
+def _breaker_fail(kind):
+    with _LOCK:
+        _BREAKER["fails"] += 1
+        _BREAKER["kind"] = kind
+        if _BREAKER["fails"] >= BREAKER_FAILS:
+            _BREAKER["until"] = time.time() + BREAKER_SECONDS
+            _BREAKER["fails"] = 0
+
+
+def _breaker_ok():
+    with _LOCK:
+        _BREAKER["fails"] = 0
+
+
+def reset_breaker():
+    with _LOCK:
+        _BREAKER["fails"] = 0
+        _BREAKER["until"] = 0.0
+
+
 # tag types that describe the audience, not the thing. Useless for matching makers.
 _DROP_TAG_TYPES = ("audience", "obscurity", "complexity", "age_range", "customer_identity")
 
 # tag names that must not reach a family-facing screen or a match: ageing and end-of-life wording (the tone
-# rules forbid it) and religion-plus-family labels on content. Genre tags (Sufi, Devotional) are kept.
+# rules forbid it), heavy themes, and religion-plus-family labels on content. Genre tags (Sufi, Devotional) are kept.
 _DROP_TAG_NAMES = re.compile(
-    r"\b(old age|ageing|aging|elderly|longevity|mortality|death|dying|funeral|grief|bereave\w*|terminal|"
-    r"illness|disease|cancer|dementia|alzheimer\w*|hospice|hospital|suicide)\b|"
+    r"\b(old age|ageing|aging|elderly|old (?:man|woman|men|women)|longevity|mortality|death|dying|funeral|grief|"
+    r"mourn\w*|bereave\w*|terminal|illness|disease|cancer|dementia|alzheimer\w*|hospice|hospital|suicide|"
+    r"communal\w*|riot\w*|terror\w*|massacre\w*|genocide|murder\w*|abus\w*)\b|"
     r"\b(muslim|hindu|christian|jewish|sikh|buddhist)\s+(family|families|community|characters?|protagonists?)\b", re.I)
+
+# extra themes that make an era-and-place GUESS a bad idea for a family screen (the guess is skipped, not just
+# the tag). Told items are never skipped.
+_HEAVY_THEMES = re.compile(
+    r"\b(violen\w*|crime\w*|criminal\w*|revenge|kidnap\w*|suicid\w*|addict\w*|torture|rape|war crime\w*)\b", re.I)
+
+
+def is_heavy(hit):
+    """True if any tag on this hit is ageing/end-of-life wording or a heavy theme."""
+    for t in hit.get("tags") or []:
+        name = t.get("name") or ""
+        if _DROP_TAG_NAMES.search(name) or _HEAVY_THEMES.search(name):
+            return True
+    return False
+
 
 class QlooClient:
     def __init__(self, timeout=10, retries=2):
@@ -43,7 +91,8 @@ class QlooClient:
 
     def get(self, path, params, step="call"):
         """Returns (data, error). error is None, 'no results', 'timeout', 'network', 'HTTP 5xx', 'no key'.
-        Successful answers and 404s are cached on disk forever (demo safety)."""
+        Successful answers and 404s are cached on disk forever (demo safety).
+        After BREAKER_FAILS timeouts/network errors in a row, uncached calls fail fast for BREAKER_SECONDS."""
         shown = {k: v for k, v in params.items()
                  if k in ("query", "filter.query", "filter.type", "types")}
         label = f"{path} {shown}"
@@ -62,14 +111,21 @@ class QlooClient:
             return None, "no key"
         last = "error"
         for attempt in range(self.retries + 1):
+            if _breaker_open():
+                last = _BREAKER["kind"]
+                break
             try:
                 r = requests.get(BASE + path, params=params,
-                                 headers={"X-Api-Key": self.key}, timeout=self.timeout)
+                                 headers={"X-Api-Key": self.key},
+                                 timeout=(CONNECT_TIMEOUT, self.timeout))
             except requests.Timeout:
                 last = "timeout"
+                _breaker_fail(last)
             except requests.RequestException:
                 last = "network"
+                _breaker_fail(last)
             else:
+                _breaker_ok()  # Qloo answered, so it is reachable
                 if r.status_code == 200:
                     data = r.json()
                     f.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
@@ -82,6 +138,8 @@ class QlooClient:
                 last = f"HTTP {r.status_code}"
                 if r.status_code in (400, 401, 403):
                     break
+            if _breaker_open():
+                break
             time.sleep(0.5 * (attempt + 1))
         self._log(step, label, last, t0)
         return None, last

@@ -11,3 +11,5 @@ _coverage/
 _cache/
 _nani_portrait.json
 *.csv
+_review/
+docs/coverage-report.md

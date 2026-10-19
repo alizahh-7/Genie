@@ -3,9 +3,9 @@ import datetime
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 try:
-    from .qloo_client import QlooClient, as_list, clean_tags, compact, hit_id, hit_name
+    from .qloo_client import QlooClient, as_list, clean_tags, compact, hit_id, hit_name, is_heavy
 except ImportError:
-    from qloo_client import QlooClient, as_list, clean_tags, compact, hit_id, hit_name
+    from qloo_client import QlooClient, as_list, clean_tags, compact, hit_id, hit_name, is_heavy
 try:
     from .resolve import resolve
 except ImportError:
@@ -111,7 +111,7 @@ def _era_items(client, person, need, have=()):
             for h in hits:
                 if n >= need:
                     break
-                if compact(hit_name(h)) in have:
+                if is_heavy(h) or compact(hit_name(h)) in have:
                     continue
                 items.append({"domain": domain, "name": hit_name(h), "qloo_entity_id": hit_id(h),
                               "tags": clean_tags(h), "source_label": "likely",
@@ -133,15 +133,22 @@ def build_portrait(person, inputs, client=None):
 def _build(person, inputs, client):
     cands = _collect(inputs)
     results = {}
-    with ThreadPoolExecutor(max_workers=5) as ex:
+    ex = ThreadPoolExecutor(max_workers=5)
+    try:
         futs = {ex.submit(resolve, c["name"], c["domain"], c["hint"], client,
                           person.get("region", ""), person.get("language", "")): i
                 for i, c in enumerate(cands)}
         try:
             for f in as_completed(futs, timeout=TOTAL_TIMEOUT):
-                results[futs[f]] = f.result()
+                try:
+                    results[futs[f]] = f.result()
+                except Exception:
+                    pass  # that one item becomes level 6 below
         except Exception:
-            pass  # timed out: leftover items become level 6 below
+            pass  # overall limit reached: leftover items become level 6 below
+    finally:
+        # do not wait for stuck Qloo calls: they finish in the background and only fill the cache
+        ex.shutdown(wait=False, cancel_futures=True)
 
     items, resolved = [], 0
     for i, c in enumerate(cands):
@@ -160,4 +167,5 @@ def _build(person, inputs, client):
 
     if resolved < 3:  # thin portrait: add level 4 items
         items += _era_items(client, person, need=3, have={compact(i['name']) for i in items} | {compact(i['matched_name'] or '') for i in items})
-    return {"items": items, "qloo_log": client.log}
+    # contract: at most 30 items. Era guesses are added last, so they are the ones dropped.
+    return {"items": items[:MAX_ITEMS], "qloo_log": client.log}
