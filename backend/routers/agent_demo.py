@@ -5,7 +5,7 @@ from typing import Dict, List, Literal, Optional
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
-from engine import run_agent, pick_reaction_cards, apply_reactions
+from engine import run_agent, pick_reaction_cards, apply_reactions, side_by_side, generate_bedside_kit
 
 router = APIRouter(tags=["agent-demo"])
 
@@ -105,3 +105,33 @@ def reactions_apply(body: ReactionsIn):
     _limits(body.items, body.tried, body.reactions)
     return apply_reactions(_person(body.person), [_dump(i) for i in body.items], [_dump(r) for r in body.reactions],
                            [t[:80] for t in body.tried])
+    
+def _prepare(body: AgentIn):
+    if len(body.quick_facts) > 20 or len(body.circle_answers) > 25:
+        raise HTTPException(status_code=422, detail="Too many items. Send up to 20 favourites and 25 circle answers.")
+    inputs = {
+        "quick_facts": [{"domain": f.domain, "name": f.name.strip(), "hint": f.hint} for f in body.quick_facts],
+        "circle_answers": [{"contributor": c.contributor,
+                            "answers": {str(k)[:40]: str(v)[:500] for k, v in list(c.answers.items())[:8]}}
+                           for c in body.circle_answers],
+    }
+    return _person(body.person), inputs
+
+
+@router.post("/agent/compare")
+def agent_compare(body: AgentIn):
+    """The side-by-side screen: a general AI's wishes next to Genie's, from the same facts, with the evidence."""
+    person, inputs = _prepare(body)
+    return side_by_side(person, inputs)
+
+
+class KitIn(BaseModel):
+    person: PersonIn
+    items: List[ItemIn]
+
+
+@router.post("/agent/bedside-kit")
+def bedside_kit(body: KitIn):
+    """The Bedside Kit for in-room wishes: playlist, small changes to the room, what visitors can do."""
+    _limits(body.items, [])
+    return generate_bedside_kit(_person(body.person), [_dump(i) for i in body.items])

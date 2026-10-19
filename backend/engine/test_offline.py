@@ -121,6 +121,7 @@ check("levels within 1-6", all(1 <= i["resolution_level"] <= 6 for i in out["ite
 out = P.build_portrait({"first_name": "X"}, {"quick_facts": [{"domain": "music", "name": "Queen"}]}, client=Fake(err="timeout"))
 check("API down: item kept, level 6, no crash", len(out["items"]) == 1 and out["items"][0]["resolution_level"] == 6 and out["items"][0]["qloo_entity_id"] is None)
 check("empty input returns empty portrait", P.build_portrait({}, {}, client=Fake())["items"] == [])
+check("short sentences are not names, real names are", P._naive_split("She sang along to Queen, Kishore Kumar and Lata") == ["Kishore Kumar", "Lata"])
 
 print("era and place (level 4)")
 ins = {(A, ("signal.demographics.age", "signal.interests.tags", "signal.location.query")): {"results": {"entities": [ent("Era Artist 1", "E1"), ent("Era Artist 2", "E2")]}},

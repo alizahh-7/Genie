@@ -1,8 +1,8 @@
 # Genie engine: documentation
 
-**Owner:** Umaima. **Folder:** `backend/engine/`. **Status:** Days 1-6 complete on the engine side: resolve, fallback ladder, portrait builder, wish generation, one end-to-end entry point with visible steps (`run_agent`), and Reaction Mode logic. Day 7 is the side-by-side screen and the Bedside Kit.
+**Owner:** Umaima. **Folder:** `backend/engine/`. **Status:** Days 1-7 complete on the engine side: resolve, fallback ladder, portrait builder, wish generation, one end-to-end entry point with visible steps (`run_agent`), Reaction Mode logic, the side-by-side comparison with a general AI, and the Bedside Kit. **Feature freeze:** from here on the engine only gets bug fixes, polish, copy and tests. Day 8 is polish.
 
-The engine is plain Python. It talks to Qloo (and optionally an LLM) and returns data. **It never touches the database**: the backend calls it and stores what it returns. See `docs/engine-contract.md` for the exact input/output shapes, and `docs/umaima-engine-report-days-1-6.md` for the full work report.
+The engine is plain Python. It talks to Qloo (and optionally an LLM) and returns data. **It never touches the database**: the backend calls it and stores what it returns. See `docs/engine-contract.md` for the exact input/output shapes, and `docs/umaima-engine-report-days-1-7.md` for the full work report.
 
 ---
 
@@ -19,9 +19,9 @@ Genie turns "what a person loved" into a Taste Portrait and then into wishes. Th
 7. **Generate wishes** from the portrait, including one Qloo "people like them also love" discovery.
 8. **Explain** what it did as a short list of steps built from real counts.
 9. **React**: choose a few items to show a person who cannot speak, take "lit up" or "no reaction" taps, and refresh the portrait.
-10. **Log** every Qloo call so the UI can show a live "Qloo call log".
-
-Not built yet: Bedside Kit and the side-by-side screen (Day 7).
+10. **Compare**: put a general AI's wishes next to Genie's, from the same facts, with the evidence.
+11. **Comfort**: build a Bedside Kit (playlist, small changes to the room, what visitors can do) for wishes in a care room.
+12. **Log** every Qloo call so the UI can show a live "Qloo call log".
 
 ## 2. Files
 
@@ -31,19 +31,23 @@ Not built yet: Bedside Kit and the side-by-side screen (Day 7).
 | `resolve.py` | `resolve(name, domain)`: the fallback ladder (levels 1, 2, 3, 5, 6), alias and parent tables, short-input guard. |
 | `portrait.py` | `build_portrait(person, inputs)`: collects, resolves in parallel, labels, scores, expands (level 4, with per-language Qloo tags). |
 | `wishes.py` | `generate_wishes(items, person)`: 3-5 template-based wishes, Qloo discovery with explainability, realism filter, optional LLM polish. |
-| `agent.py` | `run_agent(person, inputs)`: portrait, then wishes, in one call, with a list of visible steps and timings. **The function the backend should call.** |
+| `agent.py` | `run_agent(person, inputs)`: portrait, then wishes, in one call, with a list of visible steps and timings. **The function the backend should call to build a portrait and wishes.** |
 | `reaction.py` | `pick_reaction_cards(...)` and `apply_reactions(...)`: Reaction Mode logic. |
+| `sidebyside.py` | `side_by_side(person, inputs)`: a general AI's wishes next to Genie's, from the same facts, plus the evidence. |
+| `kit.py` | `generate_bedside_kit(person, items)`: the Bedside Kit, from templates. |
 | `llm.py` | Optional LLM helper: alternate spellings, parent artist/cuisine, extracting names from free text. OpenAI-compatible, cached, one retry, circuit breaker. |
-| `__init__.py` | Exposes `QlooClient`, `resolve`, `build_portrait`, `generate_wishes`, `run_agent`, `pick_reaction_cards`, `apply_reactions`. |
-| `test_offline.py` | 42 offline checks (matching, tag hygiene, ladder, confidence, portrait, level 4, HTTP client). No network, no keys, LLM stubbed. |
+| `__init__.py` | Exposes `QlooClient`, `resolve`, `build_portrait`, `generate_wishes`, `run_agent`, `pick_reaction_cards`, `apply_reactions`, `side_by_side`, `generate_bedside_kit`. |
+| `test_offline.py` | 43 offline checks (matching, tag hygiene, name splitting, ladder, confidence, portrait, level 4, HTTP client). No network, no keys, LLM stubbed. |
 | `test_wishes.py` | 35 offline checks for wish generation. |
-| `test_agent.py` | 17 offline checks for `run_agent`: step honesty, ordering, robustness. |
-| `test_reaction.py` | 34 offline checks for Reaction Mode: card choice, safety rules, portrait updates, robustness. |
-| `live_checks.py` | Checks against real Qloo and the real LLM: `--level4`, `--extra`, `--l6`, `--llm`, `--wishes`, `--agent`, `--reaction`. |
+| `test_agent.py` | 17 offline checks for `run_agent`. |
+| `test_reaction.py` | 34 offline checks for Reaction Mode. |
+| `test_sidebyside.py` | 21 offline checks for the comparison: fairness, tone filter, evidence, failures. |
+| `test_kit.py` | 17 offline checks for the Bedside Kit: order, wording rules, empty and junk input. |
+| `live_checks.py` | Checks against real Qloo and the real LLM: `--level4`, `--extra`, `--l6`, `--llm`, `--wishes`, `--agent`, `--reaction`, `--compare`, `--kit`. |
 | `test_engine.py` | Ladder checks and the "Nani" demo portrait. |
 | `coverage_test_v2.py`, `coverage_run.py` | The original 40-input coverage test, and a re-run through the real ladder. |
 
-Backend routes that expose the engine live in `backend/routers/agent.py` (stateless `POST /agent/run` for the "try it yourself" demo, and the Reaction Mode routes). Small scripts in `backend/` only print: `qloo_probe.py`, `tag_probe.py`, `llm_probe.py`, `model_probe.py`, `llm_ping.py`, `polish_check.py`.
+Backend routes that expose the engine live in `backend/routers/agent_demo.py` (stateless, nothing stored): `POST /agent/run`, `/agent/reaction-cards`, `/agent/reactions`, `/agent/compare` and `/agent/bedside-kit`. The person-bound routes (`/persons/{id}/...`) are in `routers/agent.py`, owned by the backend owner. Small scripts in `backend/` only print: `qloo_probe.py`, `tag_probe.py`, `llm_probe.py`, `model_probe.py`, `llm_ping.py`, `polish_check.py`, `tag_filter_check.py`.
 
 Git-ignored (never commit): `_cache/`, `_coverage/`, `_nani_portrait.json`, `*.csv`. Do **not** use a rule like `backend/engine/_*`: it also matches `__init__.py` and breaks `from engine import ...`.
 
@@ -76,13 +80,15 @@ python engine\test_offline.py
 python engine\test_wishes.py
 python engine\test_agent.py
 python engine\test_reaction.py
-python engine\live_checks.py             # or --level4 / --extra / --l6 / --llm / --wishes / --agent / --reaction
+python engine\test_sidebyside.py
+python engine\test_kit.py
+python engine\live_checks.py             # or --level4 / --extra / --l6 / --llm / --wishes / --agent / --reaction / --compare / --kit
 ```
 
 ## 4. Usage (what the backend calls)
 
 ```python
-from engine import run_agent, pick_reaction_cards, apply_reactions
+from engine import run_agent, pick_reaction_cards, apply_reactions, side_by_side, generate_bedside_kit
 
 person = {"first_name": "Nani", "birth_year": 1948, "region": "Hyderabad", "language": "Hindi"}
 inputs = {
@@ -100,6 +106,9 @@ cards = pick_reaction_cards(result["items"], tried=[])["cards"]            # wha
 update = apply_reactions(person, result["items"],
                          [{"name": cards[0]["name"], "domain": cards[0]["domain"], "reaction": "lit_up"}], tried=[])
 # update["items"] -> POST /persons/{id}/portrait (replaces the portrait)
+
+both = side_by_side(person, inputs)                # the side-by-side screen
+kit = generate_bedside_kit(person, result["items"])  # the Bedside Kit screen
 ```
 
 The lower-level functions `resolve`, `build_portrait` and `generate_wishes` are still available. All functions **never raise**. Failures come back as a lower `resolution_level`, or as fewer wishes. They can take several seconds when Qloo is not cached, so the backend should call them from a worker thread or background task with its own timeout.
@@ -125,6 +134,7 @@ Notes:
 - **Thin-hit rule:** an exact hit with fewer than 3 usable tags is probably a namesake or tribute act. If a parent is known, the parent wins and the item is level 3.
 - **Songs:** Qloo indexes artists, not songs. A song input normally lands at level 3 on its artist. UI wording must say "via the artist", never "we found the song".
 - **Short-input guard:** inputs shorter than 2 characters go straight to level 5.
+- **Without the LLM**, free-text circle answers are split on commas, "and" and line breaks. A segment is kept only if it is short (five words or fewer) and has no sentence words (she, he, they, we, my, her, his, their, our, was, were, used, sang, would, because, loved), so a short sentence like "She sang along to Queen" is not turned into an item.
 - `source_label` stays `told` when the family told us about the item, even if Qloo does not know it. `ai-only` is reserved for things the LLM itself suggests.
 
 ## 5b. Wish generation
@@ -141,7 +151,7 @@ One LLM call can soften the wording. Each rewrite is accepted or rejected on its
 
 Measured with seven fictional personas (`polish_check.py`): **26 of 33 rewrites accepted (79%)**. Every rejection was a safety check doing its job. Accepted rewrites were uneven in quality.
 
-**Decision:** `run_agent` leaves polish **off** unless `WISH_POLISH=1`. This is an end-of-life product with a team copy review on Day 8, templates can be reviewed while live LLM text cannot, polish adds a slow free-tier call, and the gain is small. Calling `generate_wishes` directly still polishes by default (`use_llm=True`).
+**Decision:** `run_agent` leaves polish **off** unless `WISH_POLISH=1`. This is an end-of-life product with a team copy review on Day 8, templates can be reviewed while live LLM text cannot, polish adds a slow free-tier call, and the gain is small. Callers of `generate_wishes` should pass `use_llm=False` unless `WISH_POLISH=1`.
 
 ## 5c. Reaction Mode (Day 6)
 
@@ -158,12 +168,30 @@ For a person who can no longer recall or speak. The frontend shows a few items (
 - **Lit up:** the item becomes `reacted` (UI label "They reacted to this") with higher confidence, even if the family had told us about it.
 - **No reaction on a guess ("likely"):** the item is removed, because we never claim a guess nobody reacted to.
 - **No reaction on something the family told us:** it stays unchanged. We never contradict the family, and nothing is penalised.
-- **Refresh:** if anything lit up, one Qloo discovery call ("people who love these also love...") adds up to 3 new "likely" artists, so the portrait grows from what worked. The portrait never exceeds 30 items.
+- **Refresh:** if anything lit up, one Qloo discovery call adds up to 3 new "likely" artists, so the portrait grows from what worked. The portrait never exceeds 30 items.
 - Returns the updated `items` (replace the portrait with them), `added`, `removed`, `tried`, a `message`, the `next` cards and the Qloo log. The `message` is "That is okay. Let us try something else." when nothing lit up, and "Thank you. Genie has noted what they enjoyed." otherwise. "No reaction" is never shown as failure.
 - The input is not mutated, and the item shape does not change, so the backend's portrait table needs no new columns.
 - The **`tried` list is not stored by the engine**. The caller keeps it for the session (the frontend, or a column if the backend wants to keep it across sessions).
 
 Safeguards that stay with the interface (from the project plan): a visible Stop button at all times, the family present, a few items at a time.
+
+## 5d. Side-by-side with a general AI (Day 7)
+
+`side_by_side(person, inputs)` answers the hackathon's central question ("would this work the same without Qloo?") with a live, honest comparison.
+- **Fair by design.** The general AI gets exactly the facts the family gave (first name, birth year, region, language, favourites, circle notes) and no Qloo data. It is asked for 5 wishes in the same tone, and held to the same tone filter as Genie's wishes (no medical wording, no exclamation marks); the response says how many it filtered.
+- **No invented results.** If the general AI does not answer in time, the response says so (`available: false` with a message) and Genie's side is still complete.
+- **Both run in parallel.** The general AI's answer is cached per prompt, so a demo person can be pre-warmed.
+- **Evidence from real results:** how many of Genie's wishes carry taste tags, how many told items Qloo found, how many Qloo calls were made, and the discovery wish with its "why" and match score. The general AI's side reports that it had no taste data, and its wishes carry no source.
+- What Genie adds is evidence and structure, not necessarily nicer prose: taste links from Qloo, an honest label for where each wish came from, a discovery with a score, and a maker type it can match to a real Wish Maker. In our runs the general AI's wishes read well, and some suggest eating or drinking in the room, which Genie's wishes route through a recipe, a video, or a "ask the care team first" note.
+
+## 5e. Bedside Kit (Day 7)
+
+`generate_bedside_kit(person, items)` is for wishes that happen in a care room. It is comfort and connection only, never treatment, and it ends with "Genie is not a medical service. For questions about care, please speak with the care team."
+- **Templates, no LLM**, so every line can be read aloud and approved by the team.
+- **Playlist:** items they reacted to first, then what the family told us, then at most 3 guesses (each labelled), up to 10 names, no repeats. It lists names to search for in a music app, not recordings.
+- **Small changes to the room:** music played softly, a photo of a place, a short scene from a film, a recipe card or photo for a dish (always with "please ask the care team before bringing any food or drink"), plus general comforts (daylight, a familiar blanket).
+- **What visitors can do:** hum along, share a short memory, use the person's language, say who is here, and short visits are fine.
+- Every suggestion carries a `because` (the item it came from, or "general"), so nothing is made up. An empty portrait still gives a kit with the general suggestions and an empty-playlist note.
 
 ## 6. Confidence
 
@@ -181,9 +209,9 @@ Example: a told song matched via its artist (level 3) is 0.9 x 0.7 = 0.63.
 
 ## 7. Caching and compliance
 
-- Every Qloo response is cached on disk in `engine/_cache/` (one JSON per request, keyed by a hash). 404 "no results" are cached too. LLM answers are cached the same way, keyed by model, prompt and text.
+- Every Qloo response is cached on disk in `engine/_cache/` (one JSON per request, keyed by a hash). 404 "no results" are cached too. LLM answers (including the general AI's wishes in the comparison) are cached the same way, keyed by model, prompt and text.
 - Qloo's developer guide allows private server-side caching with no time limit but **forbids storing Qloo response data in a public repository**. So the cache, coverage outputs and portrait dumps are git-ignored, and **no Qloo response data may appear in docs, screenshots of raw JSON, or seed files in the repo**. That includes result names, entity ids and tag counts, not just raw JSON.
-- Consequence for deployment: Render's free disk is wiped on redeploy, so the first run of a demo person after each deploy is uncached (about a dozen Qloo calls, several seconds each, inside the 20 second portrait limit). Run the demo person once after each deploy to warm it. The proper fix is a private pre-warm store (a table in the private Supabase database, not the repo), planned for Day 8 with the backend owner.
+- Consequence for deployment: Render's free disk is wiped on redeploy, so the first run of a demo person after each deploy is uncached (about a dozen Qloo calls, several seconds each, inside the 20 second portrait limit, plus one LLM call for the comparison). Run the demo person once after each deploy to warm it. The proper fix is a private pre-warm store (a table in the private Supabase database, not the repo), planned for Day 8 with the backend owner.
 - Observed latency: an uncached Qloo call takes roughly 3-6 seconds (the discovery call took about 5.7 seconds uncached), a cached one under 100 ms. A fully cached Nani run through `run_agent` takes about 150 ms. Portrait items are resolved in parallel (5 workers) with a 20 second overall limit. Anything still pending at the limit becomes level 6.
 
 ## 8. LLM (optional but recommended)
@@ -197,10 +225,11 @@ Behaviour of `llm.py`:
 - **Model choice matters.** In our probe, `gemini-3.8-flash` took 30-40 seconds for a trivial answer, while the lite models took 1.5-3 seconds. Run `model_probe.py` and pick the fastest. Model names change often; `llm_probe.py` lists what your key can use, and `llm_ping.py` checks that it answers.
 
 Without `LLM_API_KEY` everything still works, using built-in aliases and parent hints for the known test cases. What you lose:
-- Free-text circle answers: the fallback splits on commas, "and" and line breaks and keeps only short (five words or fewer) segments. Long sentences yield nothing rather than junk. Real answers need the LLM.
+- Free-text circle answers: the fallback keeps only short segments without sentence words (see 5). Real answers need the LLM.
 - Level 2/3 for unseen names: only names in the built-in tables get alternate spellings or a parent.
+- The general AI's side of the comparison (it is an LLM call; the response says it is unavailable).
 
-The LLM receives only names of songs, artists, dishes, places and films (plus the person's region and language) and, if polish is on, the wish text. The Wish Circle consent note already tells contributors an AI service processes answers.
+The LLM receives only names of songs, artists, dishes, places and films (plus the person's region and language) and, if polish is on, the wish text. For the comparison, the general AI also receives the favourites, region, language and the family's circle notes, because that is exactly what Genie was given. The Wish Circle consent note already tells contributors an AI service processes answers.
 
 ## 9. What we learned about Qloo (so nobody repeats it)
 
@@ -222,23 +251,24 @@ The LLM receives only names of songs, artists, dishes, places and films (plus th
 
 ## 10. Known limits and open items
 
-- Level 4 is audience-popularity for the person's age bracket, region and language, not era-specific. It only runs for thin portraits and is always labelled "likely". With only two favourites it still adds six guesses, and some can look odd for the person. The UI must show them clearly as "likely".
+- Level 4 is audience-popularity for the person's age bracket, region and language, not era-specific. It only runs for thin portraits and is always labelled "likely". With only two favourites it still adds six guesses, and some can look odd or heavy for the person (for example a courtroom drama). The UI must show them clearly as "likely".
 - Discovery artists can be unexpected for a given taste. They are always labelled likely and the family decides.
 - `resolve()` still returns `affinity: null` (search does not return it). Affinity only appears on discovery wishes.
 - LLM polish is off by default (see 5b). With it on, about one rewrite in five is rejected, and accepted rewrites can be awkward.
-- Reaction Mode: the engine does not remember the `tried` list, and the refresh adds artists only (cross-domain additions are possible later). The interface must provide the Stop button and show "no reaction" kindly.
+- Side-by-side: the general AI is the same free-tier model the engine uses for its helper. A stronger general model would write better prose, but would still have no taste links, no source labels and no maker mapping. Its side depends on a live LLM call and can be unavailable.
+- Bedside Kit: the playlist lists names, not recordings, and most names are artists because Qloo has artists, not songs. The suggestions are general comforts plus items from the portrait, not clinical advice.
+- Reaction Mode: the engine does not remember the `tried` list, and the refresh adds artists only. The interface must provide the Stop button and show "no reaction" kindly.
 - Circle answer question keys are assumed to contain `music`, `food`, `place`, `film`. The "what made them light up" answer is not mapped to a domain. Confirm the real keys against `GET /circle/{token}`.
 - Two items with the same Qloo entity can appear in one portrait (for example a song matched via Lata Mangeshkar and Lata Mangeshkar herself). The UI should tolerate it; dedupe on entity id if it looks odd.
 - Free-tier LLM latency varies. The breaker and cache make this safe, but the first call after a pause can fail.
 - The Qloo cache is lost on every Render redeploy until the private pre-warm store exists (Day 8).
-- Planned: a `discovered` field on discovery wishes (the discovered artist's name), so matching can look for makers who list that artist. Needs a column in the `wish` table first.
+- Parking lot (not built, per the feature freeze): Clue Box (photo or voice upload), a `discovered` field on discovery wishes (needs a column in the `wish` table), cross-domain additions in Reaction Mode, a cap on how many tags the interface shows per item.
 
 ## 11. Next steps (from the 10-day plan)
 
 | Day | Engine task |
 |---|---|
-| 5 | Done on the engine side: `run_agent` with visible steps |
-| 6 | Done on the engine side: Reaction Mode logic. The screens and routes are with the frontend and backend owners. |
-| 7 | Feature freeze; side-by-side screen (generic AI vs Genie); Bedside Kit generator |
-| 8 | Caching, timeouts, error states, second demo person, odd-input tests, private pre-warm store, copy read-aloud |
+| 5-6 | Done on the engine side: `run_agent` with visible steps, Reaction Mode logic |
+| 7 | Done on the engine side: side-by-side, Bedside Kit. **Feature freeze starts.** |
+| 8 | Polish only: caching and the private pre-warm store, timeouts, error states, second demo person, odd-input tests, copy read-aloud with the team |
 | 9 | Judge test with 10 varied people; technical README and Qloo notes for the Devpost description |

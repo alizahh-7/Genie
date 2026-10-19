@@ -1,5 +1,6 @@
 import concurrent.futures
 import time
+import os
 from typing import Literal, Optional
 from uuid import UUID
 
@@ -16,7 +17,7 @@ router = APIRouter(prefix="/persons", tags=["agent"])
 
 _pool = concurrent.futures.ThreadPoolExecutor(max_workers=4)
 ENGINE_TIMEOUT = 40  # seconds per engine call
-
+POLISH = os.environ.get("WISH_POLISH") == "1"
 
 class QuickFact(BaseModel):
     domain: Literal["music", "food", "place", "film", "other"]
@@ -155,7 +156,7 @@ def generate_person_wishes(person_id: UUID):
     person, rows = read_portrait(person_id)
     if not rows:
         raise HTTPException(409, "Build the Taste Portrait before generating wishes")
-    result = run_engine(engine.generate_wishes, rows, person) or {}
+    result = run_engine(engine.generate_wishes, rows, person, None, POLISH) or {}
     saved = store_wishes(person_id, result)
     return {
         "wishes": saved,
@@ -173,7 +174,7 @@ def run_whole_agent(person_id: UUID, body: BuildIn):
 
     t = time.monotonic()
     person, inputs = read_build_inputs(person_id, body)
-    portrait_result = run_engine(engine.build_portrait, person, inputs) or {}
+    portrait_result = run_engine(engine.generate_wishes, rows, person, None, POLISH) or {}
     saved_items = store_portrait(person_id, portrait_result)
     timings["portrait"] = elapsed_ms(t)
     steps.append({"name": "portrait", "status": "ok", "ms": timings["portrait"], "items": saved_items})

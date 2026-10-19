@@ -46,9 +46,11 @@ def _age_bracket(birth_year):
 
 def _naive_split(text):
     import re
+    sentence_words = re.compile(r"\b(she|he|they|we|my|her|his|their|our|was|were|used|sang|would|because|loved)\b", re.I)
     parts = re.split(r"[,;\n]| and ", text or "")
-    return [p.strip(" .") for p in parts if 1 < len(p.strip()) <= 40 and len(p.split()) <= 5][:6]  # short names only: sentences are not names
-
+    return [p.strip(" .") for p in parts
+            if 1 < len(p.strip()) <= 40 and len(p.split()) <= 5 and not sentence_words.search(p)][:6]  # short names only: sentences are not names
+    
 
 def _collect(inputs):
     cands, seen = [], set()

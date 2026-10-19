@@ -8,6 +8,8 @@ import sys
 from pathlib import Path
 from wishes import generate_wishes
 from reaction import pick_reaction_cards, apply_reactions
+from sidebyside import side_by_side
+from kit import generate_bedside_kit
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from qloo_client import QlooClient
@@ -138,6 +140,42 @@ def reaction():
     print(f"  Qloo calls: {[(l['step'], l['status']) for l in res['qloo_log']]}")
     print("  PASS" if res["items"] and len(res["tried"]) == len(taps) else "  FAIL")
     
+def compare():
+    print("\n=== SIDE BY SIDE (Day 7): Nani ===")
+    person = {"first_name": "Nani", "birth_year": 1948, "region": "Hyderabad", "language": "Hindi"}
+    facts = [("music", "Kishore Kumar"), ("music", "Mohammed Rafi"), ("food", "haleem"), ("place", "Charminar")]
+    out = side_by_side(person, {"quick_facts": [{"domain": d, "name": n} for d, n in facts]})
+    print(f"  Both were given: {out['inputs_given']['favourites']}")
+    g = out["generic"]
+    print("\n  GENERAL AI" + ("" if g["available"] else f"  ({g['message']})"))
+    for w in g["wishes"]:
+        print(f"   [{w['mode']:9s}] {w['title']}: {w['description']}")
+    print(f"   filtered by the tone rule: {g['filtered']}")
+    print("\n  GENIE")
+    for w in out["genie"]["wishes"]:
+        print(f"   [{w['mode']:9s}] {w['title']}  ({w['basis']}, {len(w['tags'])} taste tags)")
+    print(f"\n  Evidence: {out['evidence']}")
+    print("  PASS" if out["genie"]["wishes"] and (g["available"] or g["message"]) else "  FAIL")
+
+
+def kit():
+    print("\n=== BEDSIDE KIT (Day 7): Nani ===")
+    person = {"first_name": "Nani", "birth_year": 1948, "region": "Hyderabad", "language": "Hindi"}
+    facts = [("music", "Lag Jaa Gale"), ("music", "Kishore Kumar"), ("food", "haleem"), ("place", "Charminar")]
+    items = run_agent(person, {"quick_facts": [{"domain": d, "name": n} for d, n in facts]}, use_llm=False)["items"]
+    k = generate_bedside_kit(person, items)
+    print(f"  {k['title']}\n  {k['intro']}\n  {k['playlist']['title']}: {k['playlist']['how_to']}")
+    for t in k["playlist"]["tracks"]:
+        print(f"   - {t['name']}  ({t['label']})")
+    print("  Small changes:")
+    for c in k["small_changes"]:
+        print(f"   - {c['text']}")
+    print("  Visitors:")
+    for v in k["visitors"]:
+        print(f"   - {v['text']}")
+    print(f"  {k['note']}")
+    print("  PASS" if k["playlist"]["tracks"] and k["small_changes"] and k["visitors"] else "  FAIL")
+    
 if run_all or "--level4" in args:
     level4()
 if run_all or "--extra" in args:
@@ -152,3 +190,7 @@ if run_all or "--agent" in args:
     agent()
 if run_all or "--reaction" in args:
     reaction()
+if run_all or "--compare" in args:
+    compare()
+if run_all or "--kit" in args:
+    kit()
