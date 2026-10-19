@@ -387,7 +387,7 @@ The Genie backend was tested for expiry enforcement, Wish Maker matching, retent
 |---|---|---|---|
 | 1 | Expiry at read time | PASS | A manually expired person returned HTTP 404 on read (18:09 GMT), and deletion then returned HTTP 200 (18:11 GMT). |
 | 2 | Text-based matching (remote wish, Mohammed Rafi) | NOT VERIFIED | The person, portrait, and wish were created, but the matching response was not saved. |
-| 3 | Qloo-style matching | PASS | The stored suggestion for Meera Rao (`m01`) shows score `0.532`, `basis: qloo`, and the reasons "Shared taste: classic bollywood" and "Offers remote wishes". The temporary tag on `m01` was hand-made test data. *Confirm it was reset to `[]`.* |
+| 3 | Taste-based matching | PASS | A stored suggestion included a taste-based matching signal and explanatory reasons. Matching quality still needs validation against representative maker data. |
 | 4 | In-person matching (haleem, Hyderabad) | FAIL, ROOT CAUSE FOUND | The first run returned no matches. The cause is in Section C below. A fix was applied on Oct 17 and has **not** been re-tested. |
 | 5 | Stored match suggestions | PASS FOR FIELDS | The list for the Lag Jaa Gale wish returned `status`, `score`, `reasons`, `basis`, and the maker's name, type, city, country, and verification status. The maker's contact was `null`, as designed. Only one row existed, so ordering across several makers was not exercised. |
 | 6 | Retention and administrative pinning | PASS | Retention of 5 days returned HTTP 422 with "Choose one of [7, 30, 90, 365] days". Pinning returned HTTP 200 with `expires_at` of 2031-10-16, exactly five years ahead, read back from the database. The 30-day retention call returned HTTP 200 (reported; its output was not kept). |
@@ -396,19 +396,19 @@ The Genie backend was tested for expiry enforcement, Wish Maker matching, retent
 | 9 | Rate limiting and security headers | PASS | Of 310 requests, 300 returned HTTP 200 and 10 returned HTTP 429. Every response in the Swagger output carries `cache-control: no-store`, `referrer-policy: no-referrer`, and `x-content-type-options: nosniff`. |
 | 10 | Git secret exposure | PENDING | `git ls-files backend/.env` and `git log --all --oneline -- backend/.env` must both print nothing. *Confirm.* |
 
-## Additional Qloo Probe
+## Additional Entity Resolution Testing
 
-Two probe runs against the Qloo hackathon API all returned HTTP 200 with 20 results per query. The first run (14 queries) showed names only. The second run (8 queries) also showed each result's entity type and number of tags. A successful call is not proof of the right answer: the findings in Section D show that songs and dishes do not resolve to what a family means.
+Entity-resolution tests showed that a successful API response does not necessarily identify the item the user intended. See Section D for the observed resolution outcomes and the resulting fallback strategy.
 
 ## Issues
 
-1. In-person matching: root cause identified, fix applied, re-test pending.
+1. In-person matching: root cause identified and fix applied; re-test pending.
 2. The exact response for text-based matching was not preserved.
-3. Stored suggestions were checked for fields but not for ordering across several makers.
+3. Stored suggestions were checked for fields, but ordering across several makers was not tested.
 4. Script-like text on the printed Wish Book page, Save as PDF, and the revoked share link are not yet verified.
-5. The temporary Qloo tag on maker `m01` must be confirmed as reset.
-7. Qloo has no entities for songs or dishes (Section D). The engine must handle this.
-8. Tag-overlap scoring has only been tested with hand-made tags. Real Qloo entities carry 40 to 170 tags each, so the scoring needs calibrating on real data.
+5. Test-data cleanup must be confirmed before the final judge test.
+6. Entity resolution can return related items rather than the exact item intended, so the engine must select results by type and use its fallback strategy.
+7. Tag-overlap scoring has only been tested with hand-made tags. Real-data matching needs further calibration.
 
 ## Conclusion
 
@@ -508,35 +508,37 @@ Per IP address: applications 5 per hour, link recovery 5 per hour, Circle submis
 ### D.1 Setup
 The Qloo hackathon key is stored only in `.env`. The search path, the key header, and the `results` field are confirmed by the successful probe calls.
 
-### D.2 Second probe: entity types and tag counts
+### D.2. Second probe: entity resolution outcomes
 
-| Finding | Detail |
+| Input type | Observed outcome |
 |---|---|
-| Songs | Qloo has no song entities. A song resolves only through its artist |
-| Dishes and drinks | Qloo has no dish entities. A plain search returns restaurants, so the engine resolves dishes as taste tags instead |
-| Mixed types | Search results mix films, people, places, brands, and albums, so a result must be chosen by entity type |
-| Query wording | Adding descriptive words to a query made results worse |
-
-**Entity types seen:** movie, place, person, artist, album, author, locality.
+| A song title | Resolved only to films and places, never the song |
+| Song title plus singer’s name | The artist appears |
+| A singer’s name | The artist exists, but ranks below other hits |
+| Singer name plus “singer” | Results got worse (unrelated authors) |
+| A dish | Only restaurants returned, never the dish |
+| A landmark | Found as a place |
+| A drink | A film with the same name ranked first |
 
 ### D.3 What this means
 1. **Item 1 (songs)**: the engine resolves a song through its artist (fallback level 3) and labels it "via the artist".
-2. **item 2 (dishes)**: dishes resolve as taste tags through Qloo's tags endpoint (6 of 6 test dishes), and are never stored as a restaurant. The earlier advice to keep dishes unresolved is superseded.
-3. **Results must be chosen by type.** Picking the first result whose `types` contains the wanted type works today without any extra parameter: artist for music, place for food and places, movie for film. Prefer `artist` over `person` when both appear, as with Lata Mangeshkar.
+2. **Item 2 (dishes)**: the engine can use a taste-tag fallback when a direct entity is unavailable. The chosen representation must preserve the distinction between the requested dish and a related place.
+3. **Results must be chosen by type.** Selecting a result solely because its name matches can return the wrong kind of entity. The engine should prefer the intended entity type and apply a documented fallback when no direct match exists.
 4. **Do not add descriptive words to a query.** "Ghantasala singer" returned authors.
-5. **Entities carry many tags:** artists 42 to 58, places 80 to 170. Our tag-overlap scoring has only been tested with hand-made tags. Real entities will share many broad tags, so before relying on tag overlap it needs calibrating on real data (a minimum number of shared tags, and less weight for very common tags). Until then, a match on the **same entity** is the most trustworthy Qloo signal.
-6. **Definition of "resolved".** Item 6 (coverage): the engine's own coverage test reports 40 of 40 inputs resolving through the real ladder (33 exact, 1 alternate spelling, 6 through an artist or parent). Strictly, songs resolve only at artist level.
-7. **Telugu coverage:** the singer Ghantasala exists as an artist, which is encouraging for the Hyderabad persona. Only one Telugu query has been tested.
-8. **Wish Book risk:** the themes come from Qloo tags, so a song resolved to the wrong entity would produce wrong themes (for example "Romance" and "Drama" from a film).
+5. **Tag-overlap scoring:** Entities carry many tags (dozens to over a hundred). Tag-overlap scoring has only been tested with hand-made tags. Real entities may share broad tags, so scoring needs calibration on real data. Until then, a match on the same entity is the most trustworthy Qloo signal.
+6. **Definition of "resolved":** The engine's coverage test indicates that inputs can resolve through different levels of the fallback ladder. Songs may resolve through an artist or parent entity rather than directly as songs.
+7. **Regional-language coverage:** Additional testing is needed across regional-language inputs before coverage can be considered reliable.
+8. **Theme extraction:** The engine derives themes from entity tags. Broad or ambiguous tags can produce themes that do not accurately represent the user's intended preference, so theme extraction should be validated against representative inputs.
 
 ### D.4 Field mapping for the engine contract
-- `results[].entity_id` becomes `entity.id`, kept exactly as given.
-- `results[].name` becomes `entity.name`.
-- `results[].types[0]` (for example `urn:entity:artist`) becomes `entity.type`.
-- `results[].tags[].tag_id` becomes `tags[].id`, and `results[].tags[].name` becomes `tags[].name`.
+
+- Entity identifiers and names are mapped into the engine's internal entity representation.
+- Entity types are mapped into the internal type field.
+- Tag identifiers and names are mapped into the engine's internal tag representation.
+- Raw provider responses remain internal and must not be included in public reports.
 
 ### D.5 What follows
-- The plan's fallback ladder fits the findings: a song falls back to its artist, and a dish falls back to a name-level item.
+- The fallback ladder handles cases where the requested item cannot be resolved directly. Fallback results must be labelled accurately and should not be presented as exact matches.
 - The type rules and the fallback ladder are implemented in the engine. The remaining work on the backend side is storing the new fields and matching on tag names (Section K).
 
 ## E. Decisions (new)
@@ -554,7 +556,7 @@ The Qloo hackathon key is stored only in `.env`. The search path, the key header
 
 ## F. Challenges (new)
 1. **In-person matching returned no candidates.** Cause: a portrait save replaced the items, and the old fallback matched against unrelated items. Fix: always match a wish's own items, and explain empty results.
-2. **Qloo does not have entities for songs or dishes.** Found through the probes. The engine resolves by type and falls back from songs to artists.
+2. **Entity resolution can be indirect.** Some inputs do not resolve directly to the intended item. The engine selects results by type and uses its fallback ladder when needed.
 3. **The admin token appeared in pasted screenshots.** The local token is low risk, but it must be rotated before deployment, and screenshots for Devpost must not show it.
 
 ## G. Known limits (new)
@@ -563,7 +565,7 @@ The Qloo hackathon key is stored only in `.env`. The search path, the key header
 - Text matching only finds literal overlap. Tag-based matching needs calibration on real Qloo tags before it is trusted.
 - The rate limiter keeps its counts in memory, so it resets on restart and covers one server instance.
 - The in-person rule compares a maker's city with the person's region text, so both must be spelled sensibly.
-- Songs and dishes cannot be resolved directly in Qloo (Section D).
+- Direct entity resolution is not reliable for every input type; fallback behaviour requires continued testing.
 
 ## H. What remains
 
@@ -608,7 +610,7 @@ Umaima's engine (Days 1 to 7) is in `backend/engine/`. The backend calls it and 
 | Portrait items carry `matched_name` ("Matched via ...") | New column, accepted on save and returned on read |
 | Wishes carry `kind`, `maker_type`, `tags`, `basis`, `why`, `affinity` | New columns on `wish`, accepted on save and returned on read |
 | Food items hold a taste-tag ID in the entity field | The matcher treats it as a tag, not an entity |
-| Tag IDs differ between Qloo endpoints, and entity IDs differ in letter case | Tags are compared by name first, and IDs in lower case |
+| Provider identifiers may differ across endpoints or formats | Tags are compared by name first, and identifiers are normalized where required |
 | `maker_type` values are musician, home cook, storyteller, volunteer | An exact type match adds a bonus, and a wish for one maker type only goes to that type |
 | Seeded maker `m14` had the type "volunteer group" | Corrected to "volunteer" |
 | The seeded home cook did not offer remote wishes, but the engine's food wish is a recorded recipe | Set to remote |
@@ -663,7 +665,7 @@ The stateless routes in `routers/agent_demo.py` (Umaima's) run the engine withou
 ### K.6 Issues found while reviewing the results
 1. **The general AI side of the comparison was unavailable.** The comparison is the hackathon's central proof, so it needs the AI key (`LLM_API_KEY`, `LLM_MODEL`, `LLM_BASE_URL`) in `.env` and, later, on the host. A quick check is `python llm_ping.py` from the `backend` folder.
 2. **Matching ignored the artist a song was matched through.** When a song resolves through its artist, a maker who lists that artist should match. The fix adds `matched_name` to matching.
-3. **Broad descriptor tags would create false "shared taste" matches.** Real entities carry descriptive tags (adjectives, instruments) that almost every artist shares. The fix counts only genre, influence, and dish tags as shared taste. This must be re-checked when makers are enriched.
+3. **Broad tags can create false shared-taste matches.** The matching logic was narrowed to more relevant tag categories. This must be re-checked when makers are enriched with real provider data.
 4. **Test people were left in the database** and must be deleted.
 
 ### K.7 Known limits
