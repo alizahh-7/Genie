@@ -45,13 +45,15 @@ def send_email(to_email: str, subject: str, text: str) -> bool:
             },
             timeout=10,
         )
-        if r.status_code >= 300:
-            log.warning("Email service returned status %s", r.status_code)
-            return False
-        return True
     except Exception as exc:
-        log.warning("Email failed: %s", exc)
+        # The request itself failed (timeout, network). There is no response to read.
+        log.warning("Email request failed: %s", exc)
         return False
+    if r.status_code >= 300:
+        # Brevo explains the problem in the body (for example an unverified sender or a blocked IP).
+        log.warning("Email service returned status %s: %s", r.status_code, r.text[:200])
+        return False
+    return True
 
 
 def application_text(name: str, link: str) -> str:

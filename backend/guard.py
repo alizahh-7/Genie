@@ -18,18 +18,18 @@ def _rule(method: str, path: str):
     """Returns (bucket, max requests, window in seconds)."""
     if method == "POST":
         if path.endswith("/compare"):
-            return "compare", 12, 3600  # spends a general-AI call
+            return "compare", 5, 60  # spends a general-AI call
         if path.startswith("/agent/") or path.endswith(
             ("/portrait/build", "/wishes/generate", "/agent/run", "/reaction/apply")
         ):
-            return "agent", 40, 3600
+            return "agent", 10, 60  # every call spends Qloo quota
         if path == "/makers/apply":
             return "apply", 5, 3600
         if path == "/makers/recover":
             return "recover", 5, 3600
         if path.startswith("/circle/"):
             return "circle", 40, 3600
-        if path == "/persons":
+        if path in ("/persons", "/demo/start"):
             return "create-person", 30, 3600
     return "general", 300, 60
 

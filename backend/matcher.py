@@ -2,6 +2,11 @@ import unicodedata
 
 STOPWORDS = {"the", "a", "an", "of", "and", "for", "in", "to"}
 
+# A match that rests only on broad shared taste traits (nothing else links the maker to the
+# item) must clear this score to be suggested. Weaker ones are dropped, so a jazz musician
+# does not show up under a K-pop wish. Lower this number to show more, raise it to show fewer.
+TRAITS_ONLY_MIN = 0.45
+
 TYPE_FIT = {
     "music": {"musician", "cafe"},
     "food": {"home cook", "cafe"},
@@ -143,6 +148,9 @@ def score_maker(items, maker, mode, person, wish_type=None):
     top = hits[:3]
     base = 0.7 * top[0][0] + 0.3 * (sum(h[0] for h in top) / 3)
 
+    # True when every strong signal is only "shared taste traits" and nothing more specific.
+    traits_only = all(h[2].startswith("Shared taste:") for h in top)
+
     reasons = []
     for h in top:
         if h[2] not in reasons:
@@ -172,6 +180,7 @@ def score_maker(items, maker, mode, person, wish_type=None):
         "score": round(min(1.0, base * 0.85 + bonus), 3),
         "reasons": reasons[:5],
         "basis": "qloo" if any(h[1] == "qloo" for h in top) else "text",
+        "traits_only": traits_only,
     }
 
 
@@ -223,8 +232,12 @@ def rank_makers(items, makers, mode, person, blocked=frozenset(), limit=5,
         if m["id"] in blocked or not is_eligible(m, mode, person, wish_type):
             continue
         result = score_maker(views, m, mode, person, wish_type)
-        if result and result["score"] >= min_score:
-            ranked.append({"maker_id": m["id"], **result})
+        if not result or result["score"] < min_score:
+            continue
+        # Weak matches that rest only on broad shared traits are not suggested.
+        if result.pop("traits_only", False) and result["score"] < TRAITS_ONLY_MIN:
+            continue
+        ranked.append({"maker_id": m["id"], **result})
     ranked.sort(key=lambda r: r["score"], reverse=True)
     if not ranked and wish_type:
         ranked = type_only(makers, mode, person, blocked, wish_type)
