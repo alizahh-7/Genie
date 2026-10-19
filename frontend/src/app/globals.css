@@ -1,0 +1,5 @@
+@tailwind base;@tailwind components;@tailwind utilities;
+body{background:#edf0ee;color:#1d2a2f;font-family:system-ui,-apple-system,"Segoe UI",sans-serif;font-size:18px;line-height:1.65}
+h1,h2,h3{font-family:"Iowan Old Style",Palatino,Georgia,serif;font-weight:500;line-height:1.25}
+a:focus-visible,button:focus-visible,input:focus-visible,textarea:focus-visible{outline:3px solid #394867;outline-offset:2px}
+@media print{.noprint{display:none!important}body{background:#fff}}

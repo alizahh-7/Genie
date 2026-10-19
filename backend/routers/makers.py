@@ -21,7 +21,7 @@ router = APIRouter(prefix="/makers", tags=["makers"])
 
 # Public columns only. Never expose contact_email or manage_token_hash.
 PUBLIC_COLS = (
-    "id, name, type, bio, tags, qloo_entity_ids, city, country, languages, "
+    "id, name, type, bio, tags, city, country, languages, "
     "remote_ok, is_sample, verification_status"
 )
 
