@@ -1,11 +1,1 @@
-import { Shell, Card, Sample } from "@/components/ui";
-const rows = [["Nani", "3 wishes", "1 accepted"], ["Rao", "2 wishes", "2 in progress"], ["Mira", "4 wishes", "1 done"]];
-export default function Hospice() {
-  return (
-    <Shell>
-      <h1 className="text-3xl text-dusk mb-1">Coordination dashboard<Sample /></h1>
-      <p className="mb-6 text-dusk/80">Mockup only. Fictional data. A view for hospice volunteer coordinators.</p>
-      {rows.map(r => <Card key={r[0]}><div className="flex flex-wrap justify-between"><b>{r[0]}</b><span>{r[1]}</span><span>{r[2]}</span></div></Card>)}
-    </Shell>
-  );
-}
+import {Shell,Card,Btn} from "@/components/ui";export default function Hospice(){return <Shell><div className="py-12"><p className="text-sm uppercase tracking-widest text-navy/60">Preview only — fictional data</p><h1 className="my-5 text-5xl">A quieter way to support families</h1><Card><h2 className="text-2xl">Hospice preview</h2><p className="mt-3">A future view for care teams. No real patient data, medical recommendations or hospice integration is present.</p></Card><div className="mt-6"><Btn href="/">Back to Genie</Btn></div></div></Shell>}

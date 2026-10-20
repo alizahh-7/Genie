@@ -1,27 +1,5 @@
 "use client";
-import { useParams } from "next/navigation";
-import { Shell, Card, Tag, Sample, Loading } from "@/components/ui";
-import { usePerson } from "@/lib/usePerson";
-export default function Wishes() {
-  const { id } = useParams<{ id: string }>(); const { p } = usePerson(id);
-  if (!p) return <Loading id={id} />;
-  return (
-    <Shell id={id}>
-      <h1 className="text-3xl text-dusk mb-1">Wishes for {p.name}</h1>
-      <p className="mb-6 text-dusk/80">Genie suggests. You decide. Nobody is contacted until you and they both agree.</p>
-      {p.wishes.map(w => (
-        <Card key={w.id}>
-          <Tag>{w.mode === "remote" ? "Can happen remotely" : "In person, with family present"}</Tag>
-          <h2 className="text-2xl my-1">{w.title}</h2>
-          <p className="mb-3">{w.description}</p>
-          {w.makers.map(m => (
-            <div key={m.name} className="flex flex-wrap items-center justify-between border-t border-brass/30 py-2 text-base">
-              <span>{m.name}, {m.city}<Sample /></span>
-              <span className="text-dusk/80">{m.score}% fit, {m.status}</span>
-            </div>
-          ))}
-        </Card>
-      ))}
-    </Shell>
-  );
-}
+import {useParams} from "next/navigation";import {useState} from "react";import {getWishes,matchWish,getRequests,sendRequest,api,personPath} from "@/lib/api";import type {Wish} from "@/lib/types";import {WishCard} from "@/components/story";import {Page,useLoad,Wait,Action,TextList} from "@/components/Extra";import {Card,Btn,ErrorBox} from "@/components/ui";
+type Maker={maker_id:string;name:string;type:string;city?:string;country?:string;is_sample?:boolean;verification_status?:string;reasons?:string[];basis?:string};
+function Matching({id,w}:{id:string;w:Wish}){const [matches,setMatches]=useState<Maker[]>([]),[message,setMessage]=useState(""),[requests,setRequests]=useState<unknown>(null),[chosen,setChosen]=useState(""),[msg,setMsg]=useState(""),[contact,setContact]=useState("");const refresh=async()=>setRequests(await getRequests(id,w.id));return <div className="mt-4 space-y-4"><Action label="Find Wish Makers" task={()=>matchWish(id,w.id)} onDone={v=>{const r=v as {matches?:Maker[];message?:string};setMatches(r.matches??[]);setMessage(r.message??"")}}/>{message&&<p>{message}</p>}{matches.map(m=><Card key={m.maker_id}><h3 className="text-2xl">{m.name} {m.is_sample&&<span className="text-sm text-navy/60">(Sample Wish Maker)</span>}</h3><p className="text-sm text-navy/70">{[m.type,m.city,m.country,m.verification_status].filter(Boolean).join(" · ")}</p><p className="text-sm">{m.reasons?.join(" · ")}</p><p className="text-xs text-navy/60">Basis: {m.basis??"Not specified"}. Suggested, not guaranteed.</p><Btn quiet onClick={()=>setChosen(chosen===m.maker_id?"":m.maker_id)}>Ask this Wish Maker</Btn>{chosen===m.maker_id&&<div className="mt-3 space-y-3"><textarea className="w-full rounded-xl border p-3" aria-label="Message to maker" value={msg} onChange={e=>setMsg(e.target.value)} placeholder="A short, respectful request"/><input className="w-full rounded-xl border p-3" aria-label="Optional family contact" value={contact} onChange={e=>setContact(e.target.value)} placeholder="Optional way to reach you"/><Action label="Send request" task={()=>sendRequest(id,w.id,{maker_id:m.maker_id,message:msg,contact:contact||undefined})} onDone={()=>{setChosen("");refresh()}}/></div>}</Card>)}<Action label="View request statuses" task={refresh}/>{requests!==null&&<TextList value={requests}/>}</div>}
+export default function Wishes(){const {id}=useParams<{id:string}>();const {data,error,busy,reload}=useLoad<Wish[]>(personPath(id,"wishes"));return <Page id={id} title="Wishes & Wish Makers">{busy?<Wait/>:error?<ErrorBox message={error} onRetry={reload}/>:!data?.length?<Card>No wishes yet. Gather their story first.</Card>:<div className="space-y-8">{data.map((w,i)=><section key={w.id}><WishCard wish={w} i={i}/><Matching id={id} w={w}/></section>)}</div>}</Page>}

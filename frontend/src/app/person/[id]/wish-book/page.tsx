@@ -1,21 +1,2 @@
-"use client";
-import { useParams } from "next/navigation";
-import { Shell, Card, Tag, Btn, Loading } from "@/components/ui";
-import { usePerson } from "@/lib/usePerson";
-export default function WishBook() {
-  const { id } = useParams<{ id: string }>(); const { p } = usePerson(id);
-  if (!p) return <Loading id={id} />;
-  return (
-    <Shell id={id}>
-      <h1 className="text-5xl text-dusk mt-4 mb-2">{p.name}</h1>
-      <p className="text-xl mb-8 text-dusk/80">Known through what they loved.</p>
-      <h2 className="text-2xl mb-3">What they loved</h2>
-      <div className="mb-8">{p.items.map(i => <Tag key={i.id}>{i.name}</Tag>)}</div>
-      <h2 className="text-2xl mb-3">Wishes</h2>
-      {p.wishes.map(w => <Card key={w.id}><h3 className="text-xl">{w.title}</h3><p>{w.description}</p></Card>)}
-      <h2 className="text-2xl mt-8 mb-3">Things we learned about them</h2>
-      {p.learned.map(l => <p key={l} className="mb-2 font-serif text-xl">{l}</p>)}
-      <div className="noprint mt-8"><Btn onClick={() => window.print()}>Print or save as PDF</Btn></div>
-    </Shell>
-  );
-}
+"use client";import {useParams} from "next/navigation";import {useState} from "react";import {API,api,personPath,compileBook,shareBook,stopSharing,retention} from "@/lib/api";import {Page,useLoad,Wait,Action,TextList} from "@/components/Extra";import {Card,Btn,ErrorBox} from "@/components/ui";
+export default function Book(){const {id}=useParams<{id:string}>();const path=personPath(id,"wish-book");const {data,error,busy,reload}=useLoad<unknown>(path);const [link,setLink]=useState(""),[expiry,setExpiry]=useState("");return <Page id={id} title="Their Wish Book"><p className="mb-5">A quiet keepsake of what family shared and what Genie learned.</p><div className="mb-6 flex flex-wrap gap-3"><Action label="Compile Wish Book" task={()=>compileBook(id)} onDone={reload}/><Action label="Create share link" task={()=>shareBook(id)} onDone={v=>{const r=v as Record<string,string>;const path=r.path||r.url||`/book/${r.token}`;setLink(new URL(path,window.location.origin).href)}}/><Action label="Stop sharing" task={()=>stopSharing(id)} onDone={()=>setLink("")}/><Btn quiet onClick={()=>window.open(`${API}${path}/print`,"_blank","noopener,noreferrer")}>Print / Save as PDF</Btn></div>{link&&<Card><p className="break-all">{link}</p><button className="underline" onClick={()=>navigator.clipboard.writeText(link)}>Copy share link</button></Card>}<Card className="my-5"><label className="block">Keep this story for… <select className="ml-3 rounded-lg border p-2" defaultValue="7" id="retention-days">{[7,30,90,365].map(n=><option key={n} value={n}>{n} days</option>)}</select></label><div className="mt-3"><Action label="Update retention" task={()=>retention(id,Number((document.getElementById("retention-days") as HTMLSelectElement).value))} onDone={v=>setExpiry(v.expires_at)}/></div>{expiry&&<p>Kept until {new Date(expiry).toLocaleDateString()}</p>}</Card>{busy?<Wait/>:error?<ErrorBox message={error} onRetry={reload}/>:<Card><TextList value={data}/></Card>}<p className="mt-4 text-sm text-navy/60">A share link is private but anyone with it can view the book. It expires with the person's data. Contact details are not included.</p></Page>}
