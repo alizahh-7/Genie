@@ -1,22 +1,3 @@
-"use client";
-import { useState } from "react";
-import { useParams } from "next/navigation";
-import { Shell, Card, Btn } from "@/components/ui";
-import { sendCircle } from "@/lib/api";
-const Q = ["What song did they love to hear?", "What food did they make, or ask for?", "Where did they feel most themselves?", "What did they love to watch or listen to?", "What would you like others to know about them?"];
-export default function Circle() {
-  const { token } = useParams<{ token: string }>();
-  const [a, setA] = useState<string[]>(Q.map(() => "")); const [name, setName] = useState(""); const [ok, setOk] = useState(false); const [done, setDone] = useState(false);
-  if (done) return <Shell><h1 className="text-3xl text-dusk mb-2">Thank you.</h1><p>Your answers help us know them better.</p></Shell>;
-  return (
-    <Shell>
-      <h1 className="text-3xl text-dusk mb-2">Help us know them</h1>
-      <p className="mb-6 text-dusk/80">Five gentle questions, about two minutes. Skip any you like.</p>
-      <label>Your first name<input className="w-full rounded-lg border border-dusk/30 bg-white px-4 py-3 mb-4" value={name} onChange={e => setName(e.target.value)} /></label>
-      {Q.map((q, i) => <label key={q}>{q}<textarea rows={2} className="w-full rounded-lg border border-dusk/30 bg-white px-4 py-3 mb-4" value={a[i]} onChange={e => setA(a.map((x, j) => j === i ? e.target.value : x))} /></label>)}
-      <Card><label className="flex gap-3"><input type="checkbox" checked={ok} onChange={e => setOk(e.target.checked)} />
-        <span className="text-base">I understand that the family who invited me, and Genie, will see my answers and my first name.</span></label></Card>
-      <Btn disabled={!ok} onClick={async () => { await sendCircle(token, { contributor_first_name: name, answers: a, consent_given: true }); setDone(true); }}>Send my answers</Btn>
-    </Shell>
-  );
-}
+"use client";import {useParams} from "next/navigation";import {useState} from "react";import {api} from "@/lib/api";import {Page,useLoad,Wait,Action} from "@/components/Extra";import {Card,ErrorBox} from "@/components/ui";
+const questions:{[k:string]:string}={music:"What song did they love?",food:"What food do you remember?",place:"Where did they feel at home?",film:"What did they love watching?",joy:"What would you like others to know?"};
+export default function Circle(){const {token}=useParams<{token:string}>();const path=`/circle/${encodeURIComponent(token)}`;const {data,error,busy,reload}=useLoad<Record<string,any>>(path);const [name,setName]=useState(""),[answers,setAnswers]=useState<Record<string,string>>({}),[consent,setConsent]=useState(false),[sent,setSent]=useState(false);return <Page title="Share a memory">{busy?<Wait/>:error?<ErrorBox message={error} onRetry={reload}/>:sent?<Card>Thank you. Your memory has been shared.</Card>:<div className="space-y-5"><p>Share a few things you remember about {data?.person_first_name??data?.first_name??"them"}. All questions are optional, but please answer at least one.</p><p className="text-sm text-navy/70">{data?.consent_note??data?.consent??"Your answers will be shared with the family."}</p><label className="block">Your first name<input className="mt-1 w-full rounded-xl border p-3" maxLength={40} value={name} onChange={e=>setName(e.target.value)}/></label>{Object.entries(questions).map(([k,q])=><label key={k} className="block">{q}<textarea maxLength={500} className="mt-1 w-full rounded-xl border p-3" value={answers[k]??""} onChange={e=>setAnswers(a=>({...a,[k]:e.target.value}))}/></label>)}<label className="flex gap-3"><input type="checkbox" checked={consent} onChange={e=>setConsent(e.target.checked)}/>I consent to sharing these memories with the family.</label><Action label="Send memories" task={()=>{if(!name.trim()||!consent||!Object.values(answers).some(x=>x.trim()))return Promise.reject(new Error("Please enter your name, one memory, and consent."));return api(`${path}/responses`,{method:"POST",body:{contributor_first_name:name.trim(),answers:Object.fromEntries(Object.entries(answers).filter(([,v])=>v.trim())),consent_given:true}})}} onDone={()=>setSent(true)}/></div>}</Page>}

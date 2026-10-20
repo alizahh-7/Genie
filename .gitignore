@@ -13,3 +13,11 @@ _nani_portrait.json
 *.csv
 _review/
 docs/coverage-report.md
+# Genie local development
+frontend/.env.local
+frontend/.next/
+frontend/node_modules/
+frontend/tsconfig.tsbuildinfo
+genie-new/
+phase1-extracted/
+genie-verification-report.txt

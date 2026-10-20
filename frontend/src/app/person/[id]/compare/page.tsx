@@ -1,18 +1,2 @@
-"use client";
-import { useParams } from "next/navigation";
-import { Shell, Card, Loading } from "@/components/ui";
-import { usePerson } from "@/lib/usePerson";
-export default function Compare() {
-  const { id } = useParams<{ id: string }>(); const { p } = usePerson(id);
-  if (!p) return <Loading id={id} />;
-  return (
-    <Shell id={id}>
-      <h1 className="text-3xl text-dusk mb-6">A general AI and Genie, side by side</h1>
-      <div className="grid gap-4 sm:grid-cols-2">
-        <Card><h2 className="text-xl mb-2">A general AI</h2>{p.generic.map(g => <p key={g} className="mb-2">{g}</p>)}</Card>
-        <Card><h2 className="text-xl mb-2">Genie, using Qloo</h2>{p.wishes.map(w => <p key={w.id} className="mb-2">{w.title}</p>)}</Card>
-      </div>
-      <Card><h2 className="text-xl mb-2">Every Qloo call</h2>{p.qlooLog.map(l => <p key={l} className="text-sm">{l}</p>)}</Card>
-    </Shell>
-  );
-}
+"use client";import {useParams} from "next/navigation";import {useState} from "react";import {api,personPath} from "@/lib/api";import {Page,useLoad,Wait,Action,TextList} from "@/components/Extra";import {Card,ErrorBox} from "@/components/ui";
+type Comparison={generic:{available:boolean;wishes:unknown[];message?:string};genie:{wishes:unknown[];qloo_log?:unknown[]};evidence:unknown;note:string};export default function Compare(){const {id}=useParams<{id:string}>();const path=personPath(id,"compare");const {data,error,busy,reload,setData}=useLoad<Comparison>(path);return <Page id={id} title="A general AI vs Genie"><p className="mb-5">Compare the generic suggestions with the Qloo-grounded experience.</p><Action label="Run a new comparison" task={()=>api<Comparison>(path,{method:"POST",timeout:90000})} onDone={setData}/>{busy?<Wait/>:error?<p className="mt-5 text-navy/60">{error} You can run a new comparison above.</p>:data&&<div className="mt-6 space-y-5"><div className="grid gap-5 md:grid-cols-2"><Card><h2 className="mb-4 text-2xl">A general AI</h2>{data.generic?.available?<TextList value={data.generic.wishes}/>:<p>{data.generic?.message}</p>}</Card><Card><h2 className="mb-4 text-2xl">Genie, using Qloo</h2><TextList value={data.genie?.wishes}/></Card></div><Card><h2 className="text-2xl">Evidence</h2><TextList value={data.evidence}/></Card><Card>{data.note}</Card><details><summary className="cursor-pointer">Qloo call log</summary><TextList value={data.genie?.qloo_log}/></details></div>}</Page>}

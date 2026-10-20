@@ -1,16 +1,2 @@
-"use client";
-import { useParams } from "next/navigation";
-import { Shell, Card, Loading } from "@/components/ui";
-import { usePerson } from "@/lib/usePerson";
-export default function Bedside() {
-  const { id } = useParams<{ id: string }>(); const { p } = usePerson(id);
-  if (!p) return <Loading id={id} />;
-  const S = ({ t, l }: { t: string; l: string[] }) => <Card><h2 className="text-xl mb-2">{t}</h2>{l.map(x => <p key={x}>{x}</p>)}</Card>;
-  return (
-    <Shell id={id}>
-      <h1 className="text-3xl text-dusk mb-1">Bedside Kit</h1>
-      <p className="mb-6 text-dusk/80">Small things for comfort and connection. Please check with the care team before changing anything in the room.</p>
-      <S t="Songs to play softly" l={p.bedside.playlist} /><S t="Gentle changes to the room" l={p.bedside.setting} /><S t="What visitors can do" l={p.bedside.visitors} />
-    </Shell>
-  );
-}
+"use client";import {useParams} from "next/navigation";import {personPath} from "@/lib/api";import {Page,useLoad,Wait,TextList} from "@/components/Extra";import {Card,ErrorBox} from "@/components/ui";
+type Kit={title:string;intro:string;playlist?:{title:string;how_to:string;tracks:{name:string;label:string;basis?:string}[];empty_note?:string};small_changes?:{text:string;because:string}[];visitors?:{text:string;because:string}[];note:string};export default function Bedside(){const {id}=useParams<{id:string}>();const {data,error,busy,reload}=useLoad<Kit>(personPath(id,"bedside-kit"));return <Page id={id} title="Bedside Kit">{busy?<Wait/>:error?<ErrorBox message={error} onRetry={reload}/>:data&&<div className="space-y-5"><p>{data.intro}</p><Card><h2 className="text-2xl">{data.playlist?.title??"Music"}</h2><p>{data.playlist?.how_to}</p>{data.playlist?.tracks?.map((t,i)=><p className="my-3" key={i}>{t.label||t.name} <span className="text-sm text-navy/60">{t.basis&&t.basis!=="general"?`because of ${t.basis}`:""}</span></p>)}{!data.playlist?.tracks?.length&&<p>{data.playlist?.empty_note}</p>}<p className="text-xs text-navy/60">These are names to search in a music app, not recordings.</p></Card>{([['Small changes',data.small_changes],['Visitors',data.visitors]] as const).map(([title,rows])=><Card key={title}><h2 className="mb-3 text-2xl">{title}</h2>{rows?.map((r,i)=><p className="mb-3" key={i}>{r.text} {r.because&&r.because!=="general"&&<span className="text-sm text-navy/60">— because of {r.because}</span>}</p>)}</Card>)}<Card><p>{data.note}</p></Card></div>}</Page>}
