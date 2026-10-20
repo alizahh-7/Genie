@@ -192,5 +192,26 @@ check("typed person: not demo",
       not sb._is_demo({"first_name": "Zed", "birth_year": 1950, "region": "X", "language": "Y"}, ["Queen"], []))
 check("junk does not raise", sb._is_demo(None, None, None) is False)
 
+print("tag filter, third pass (disaster and conflict wording)")
+hit3 = {"tags": [
+    {"id": "1", "name": "Earthquake", "type": "urn:tag:keyword:qloo"},
+    {"id": "2", "name": "Special forces", "type": "urn:tag:keyword:qloo"},
+    {"id": "3", "name": "Peacekeeping", "type": "urn:tag:keyword:qloo"},
+    {"id": "4", "name": "Duty vs desire", "type": "urn:tag:theme:qloo"},
+    {"id": "5", "name": "Romance", "type": "urn:tag:genre:qloo"}]}
+kept3 = {t["name"] for t in qc.clean_tags(hit3)}
+check("disaster and conflict wording dropped", not ({"Earthquake", "Special forces", "Peacekeeping"} & kept3))
+check("gentle themes kept", {"Duty vs desire", "Romance"} <= kept3)
+
+print("tag filter, no false alarms")
+hit5 = {"tags": [
+    {"id": "1", "name": "Bombay cinema", "type": "urn:tag:genre:qloo"},
+    {"id": "2", "name": "Patriotism", "type": "urn:tag:theme:qloo"},
+    {"id": "3", "name": "Bomb threat", "type": "urn:tag:keyword:qloo"},
+    {"id": "4", "name": "Warm", "type": "urn:tag:style:qloo"}]}
+kept5 = {t["name"] for t in qc.clean_tags(hit5)}
+check("Bombay, Patriotism and Warm are kept", {"Bombay cinema", "Patriotism", "Warm"} <= kept5)
+check("Bomb threat is dropped", "Bomb threat" not in kept5)
+
 print(f"\n{'all passed' if not fails else str(fails) + ' FAILED'}")
 sys.exit(1 if fails else 0)

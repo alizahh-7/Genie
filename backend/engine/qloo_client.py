@@ -63,7 +63,8 @@ _DROP_TAG_NAMES = re.compile(
     r"mourn\w*|bereave\w*|terminal|illness|disease|cancer|dementia|alzheimer\w*|hospice|hospital|suicide|"
     r"communal\w*|riot\w*|terror\w*|massacre\w*|genocide|murder\w*|abus\w*|"
     r"medical|medicine|surgeon|surgery|doctor|nurse|clinic\w*|patient|virus|outbreak|epidemic|pandemic|"
-    r"war|warfare|military|army|soldier\w*|demilitari\w*)\b|"
+    r"war|warfare|military|army|soldier\w*|demilitari\w*|earthquake|disaster|special forces|peacekeep\w*|"
+    r"combat|battle|weapon\w*|hostage\w*|bomb(?:s|ing|ed|er|ers)?|explosi(?:on|ons|ve|ves))\b|"
     r"\b(muslim|hindu|christian|jewish|sikh|buddhist)\s+(family|families|community|characters?|protagonists?)\b", re.I)
 
 # extra themes that make an era-and-place GUESS a bad idea for a family screen (the guess is skipped, not just
