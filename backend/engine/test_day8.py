@@ -142,5 +142,55 @@ check("single item reads 'Matched it in Qloo.'", s1["resolve"] == "Matched it in
 check("two items read 'Matched all 2 in Qloo.'", s2["resolve"] == "Matched all 2 in Qloo.")
 check("1 item, 0 tags", s1["build"].startswith("Built a portrait of 1 item,") and "0 taste tags" in s1["expand"])
 
+print("tag filter, second pass (medical wording on a told film)")
+hit2 = {"tags": [
+    {"id": "1", "name": "Medical drama", "type": "urn:tag:subgenre:qloo"},
+    {"id": "2", "name": "Voluntary medical team", "type": "urn:tag:keyword:media"},
+    {"id": "3", "name": "Virus outbreak", "type": "urn:tag:keyword:qloo"},
+    {"id": "4", "name": "War torn country", "type": "urn:tag:keyword:qloo"},
+    {"id": "5", "name": "Surgeon", "type": "urn:tag:keyword:qloo"},
+    {"id": "6", "name": "Legs", "type": "urn:tag:keyword:media"},
+    {"id": "7", "name": "Public restrooms", "type": "urn:tag:amenity:qloo"},
+    {"id": "8", "name": "Romance", "type": "urn:tag:genre:qloo"},
+    {"id": "9", "name": "Beach", "type": "urn:tag:genre:place"},
+    {"id": "10", "name": "Sacrifice", "type": "urn:tag:theme:qloo"}]}
+kept2 = {t["name"] for t in qc.clean_tags(hit2)}
+check("medical, outbreak and war wording dropped",
+      not ({"Medical drama", "Voluntary medical team", "Virus outbreak", "War torn country", "Surgeon"} & kept2))
+check("odd keyword and amenity tags dropped", not ({"Legs", "Public restrooms"} & kept2))
+check("genres and themes kept", {"Romance", "Beach", "Sacrifice"} <= kept2)
+check("is_heavy flags medical wording", qc.is_heavy({"tags": [{"id": "1", "name": "Medical drama"}]}))
+
+print("comparison cache privacy")
+from engine import llm
+from engine import sidebyside as sb
+from engine.personas import PERSONAS
+tmp2 = Path(tempfile.mkdtemp())
+old_dir2, old_post2 = llm.CACHE_DIR, llm.requests.post
+
+
+class _R:
+    status_code = 200
+    def json(self): return {"choices": [{"message": {"content": '{"wishes": []}'}}]}
+
+
+llm.CACHE_DIR = tmp2
+llm.requests.post = lambda *a, **k: _R()
+llm._down_until = 0.0
+os.environ["LLM_API_KEY"] = "test"
+llm.chat_json("s", "u1", cache=False)
+check("cache=False writes nothing", not list(tmp2.glob("llm_*.json")))
+llm.chat_json("s", "u2")
+check("default still caches", len(list(tmp2.glob("llm_*.json"))) == 1)
+os.environ["LLM_API_KEY"] = ""
+llm.requests.post, llm.CACHE_DIR = old_post2, old_dir2
+n = PERSONAS["nani"]
+fav, notes = sb._facts(n["inputs"])
+check("demo person is recognised", sb._is_demo(n["person"], fav, notes))
+check("same name, other favourites: not demo", not sb._is_demo(n["person"], ["Queen"], notes))
+check("typed person: not demo",
+      not sb._is_demo({"first_name": "Zed", "birth_year": 1950, "region": "X", "language": "Y"}, ["Queen"], []))
+check("junk does not raise", sb._is_demo(None, None, None) is False)
+
 print(f"\n{'all passed' if not fails else str(fails) + ' FAILED'}")
 sys.exit(1 if fails else 0)

@@ -34,7 +34,7 @@ def _trip():
     _down_until = time.time() + BREAKER_SECONDS
 
 
-def chat_json(system, user, max_tokens=1000, timeout=None):
+def chat_json(system, user, max_tokens=1000, timeout=None, cache=True):
     key = os.environ.get("LLM_API_KEY")
     if not key:
         return None
@@ -45,7 +45,7 @@ def chat_json(system, user, max_tokens=1000, timeout=None):
     # 1. cache first (works even while the breaker is open)
     ck = hashlib.sha1((model + system + user).encode()).hexdigest()
     f = CACHE_DIR / f"llm_{ck}.json"
-    if f.exists():
+    if cache and f.exists():
         try:
             return json.loads(f.read_text(encoding="utf-8"))
         except Exception:
@@ -83,7 +83,8 @@ def chat_json(system, user, max_tokens=1000, timeout=None):
         except Exception as e:
             print(f"  [llm] bad response: {e}")
             break
-        f.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+        if cache:
+            f.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
         return data
     _trip()
     return None

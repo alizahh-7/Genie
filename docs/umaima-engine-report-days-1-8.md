@@ -53,7 +53,7 @@ The engine is plain Python in `backend/engine/`. It never touches the database: 
 ### Day 6: Reaction Mode logic
 - **`pick_reaction_cards(items, tried, n)`** (`reaction.py`) chooses what to show a person who cannot recall or speak. Sessions are short (4 cards, never more than 5), told items come first, domains are mixed, nothing already tried or already reacted to is shown again, and every card has a calm prompt.
 - **`apply_reactions(person, items, reactions, tried)`** takes "lit up" or "no reaction" taps and updates the portrait. Lit up: the item becomes `reacted` ("They reacted to this") with higher confidence. No reaction on a guess: the guess is removed, because we never claim something nobody reacted to. No reaction on something the family told us: it stays unchanged. Nothing is ever shown as failure, and the message is always "That is okay. Let us try something else." If anything lit up, one Qloo discovery call adds up to 3 new "likely" artists. The portrait item shape is unchanged, so the backend needs no new columns.
-- **Tag hygiene.** Reading a real `/agent/run` response showed Qloo tags such as "Old age" and "Ageing" on a film, and a religion-plus-family label on another, attached to guessed items on a family-facing screen. `clean_tags` now drops tags with ageing, illness or end-of-life words and religion-plus-family or community labels, while keeping genre tags.
+- **Tag hygiene.** Reading a real `/agent/run` response showed Qloo tags with ageing wording on a film, and a religion-plus-family label on another, attached to guessed items on a family-facing screen. `clean_tags` now drops tags with ageing, illness or end-of-life words and religion-plus-family or community labels, while keeping genre tags.
 
 ### Day 7: the comparison and the Bedside Kit
 - **Side-by-side** (`sidebyside.py`, `POST /agent/compare`): a general AI's wishes next to Genie's, from the same facts. It answers the hackathon's central rule ("would this work the same without Qloo?") live, and is fair by design: the general AI gets exactly what the family gave (name, birth year, region, language, favourites, circle notes) and no Qloo data, and is held to the same tone filter. If it does not answer, the response says so instead of inventing a result. The evidence block is computed from real results: wishes with taste tags, told items found in Qloo, Qloo calls made, and the discovery wish with its "why" and match score. The two sides run in parallel and the general AI's answer is cached per prompt.
@@ -70,8 +70,10 @@ Day 8 added no features. Everything below came from checking the engine against 
   1. **The 30-item cap.** The level-4 guesses were added after the told items and never trimmed (36 items). Now trimmed to 30, guesses first.
   2. **A dead Qloo took 33 seconds to fail.** The thread pool's `with` block kept waiting for stuck calls after the 20 second limit, and every call retried with its full timeout. Now the portrait builder abandons stuck calls at its limit (they finish in the background and only fill the cache), the client has a separate 4 second connect timeout, and a shared circuit breaker skips uncached Qloo calls for 30 seconds after 3 timeouts or network errors in a row (the cache is still served, and any answer resets the count).
   3. **One failed resolve could drop all later results.** Each result is now handled on its own.
-  4. **Heavy-theme guesses.** A real run showed a guessed film for an older person carrying tags about communal conflict, and another with an ageing-related archetype tag. The tag filter now also drops heavy-theme words, and `is_heavy()` makes the portrait builder skip the whole level-4 guess, not only its tags. The next hit takes its place. Told items are never skipped.
+  4. **Heavy-theme guesses.** A real run showed a guessed film for an older person carrying heavy-theme tags, and another with an ageing-related tag. The tag filter now also drops heavy-theme words, and `is_heavy()` makes the portrait builder skip the whole level-4 guess, not only its tags. The next hit takes its place. Told items are never skipped.
   5. **Step wording.** "Gathered 1 names" and "Matched all 1 in Qloo" now read "Gathered 1 name" and "Matched it in Qloo."
+  6. **Medical and war wording on a told film.** Reading Jun's Swagger response showed tags such as medical drama, medical team, surgeon, virus outbreak and war-torn on his told film, which breaks the rule of no medical or clinical wording on any screen. The tag filter now drops medical, outbreak and war wording, free-form media keywords and place facets (amenities, nearby attractions), and the same wording makes a level-4 guess skip.
+  7. **A typed person's first name in the cache.** The comparison's AI answer can contain the first name and was cached forever. It is now cached only for the two demo people. The prompt itself was never stored.
 - **Copy audit** (`engine/copy_audit.py`). Writes every family-facing sentence the engine can produce (steps, wishes, follow-ups, reaction prompts and messages, the Bedside Kit, the comparison note) for four scenes (Nani, Jun, a thin portrait, an empty portrait) into a git-ignored file for the team read-aloud, and flags clinical words and exclamation marks. The file can contain Qloo discovery names, so it is never committed.
 - **Repo hygiene.** Secret scan of the repo and its history (the `.env` file, the Gemini key prefix and the Qloo key prefix): nothing found. `.gitignore` gains `_review/`. `.env.example` gains `ENGINE_CACHE_RESTORE`.
 - **New offline suites:** `engine/test_day8.py` (21 checks) and `backend/test_cache_store.py` (8 checks).
@@ -112,9 +114,12 @@ Day 8 added no features. Everything below came from checking the engine against 
 | 30 | Day 8: `live_checks.py` `--agent`, `--reaction`, `--compare`, `--kit` | PASS (regression) |
 | 31 | Day 8: `copy_audit.py` | First run: 4 flags, all the mandatory "not a medical service" note (a false positive of my own linter, which now exempts it). After the fix: 0 flagged in 139 lines. The heavy-theme guesses no longer appear. |
 | 32 | Day 8: secret scan (`backend/.env` tracked or in history, the Gemini key prefix, the Qloo key prefix) | Nothing found |
-| 33 | Day 8: `uvicorn` start-up shows `[engine cache] restored N files` after the local cache is deleted | Pending |
-| 34 | Day 8: Swagger after the fixes: `/agent/run`, `/agent/compare`, `/agent/bedside-kit`, `/agent/reactions` for both personas | Pending |
-| 35 | Day 8: team read-aloud of the copy review | Pending |
+33 | Day 8: uvicorn start-up after deleting the local cache | PASS. The log shows [engine cache] restored 41 files. |
+| 34 | Day 8: smoke_api.py against the running server, both personas (run, compare, reaction-cards, reactions lit up and no reaction, bedside-kit) | PASS for both personas. The two validation checks first got HTTP 429: the per-minute rate limit (10 for agent routes, 5 for compare) was working. After waiting a minute the validation checks PASS (ALL PASSED). |
+| 35 | Day 8: team read-aloud of the copy review | Pending | (change after the call)
+| 36 | Day 8: tag filter second pass, 4 checks in test_day8.py | PASS |
+| 37 | Day 8: comparison cache privacy, 6 checks in test_day8.py | PASS |
+| 38 | Day 8: scrub greps (Qloo names, tag wording) | PASS. No Qloo names in the repo. The tag-wording search only shows our own filter words. |
 
 Total offline checks: 188 in the engine (167 + 21), plus 8 for the cache store.
 
@@ -147,10 +152,11 @@ Total offline checks: 188 in the engine (167 + 21), plus 8 for the cache store.
 | A circuit breaker in the Qloo client (3 failures, 30 seconds, cache still served) | With Qloo down, every call used to wait out all its retries. |
 | A separate 4 second connect timeout | Connecting to a dead host should not cost 10 seconds per attempt. |
 | The portrait builder abandons stuck calls at its 20 second limit | Leaving the thread pool's `with` block used to wait for them anyway. |
-| A level-4 guess with ageing, end-of-life or heavy-theme tags is skipped, not just stripped of tags | A guess is optional, and a film about communal conflict does not belong on a portrait for someone near the end of life. Told items are never skipped. |
+| A level-4 guess with ageing, end-of-life or heavy-theme tags is skipped, not just stripped of tags | A guess is optional, and a film with heavy themes does not belong on a portrait for someone near the end of life. Told items are never skipped. |
 | Odd-input tests assert the contract, not particular results | Results depend on Qloo's data. The contract does not. |
 | The outage test uses one unknown favourite | With three unknown told items a portrait is not "thin", and the engine is right to still make wishes. |
 | The comparison cache only helps for a demo person's exact inputs | The general AI's prompt includes the favourites and the family notes. The demo buttons must send the persona's exact inputs. |
+| The comparison answer is cached only for the demo people | It can contain a typed person's first name, and delete-everything does not clear the cache. |
 
 ## 5. Challenges
 
@@ -173,6 +179,7 @@ Total offline checks: 188 in the engine (167 + 21), plus 8 for the cache store.
 17. **My copy linter flagged the mandatory medical note** (Day 8) because the note contains the word "medical". Fix: the note is exempt, the rest is still linted.
 18. **The cache store failed at first** (Day 8): the table did not exist yet. Fix: an `init` command that creates it through the same connection the backend uses, so nobody needs the Supabase screen. A small bug (the usage text printing after `init`) was fixed the same day.
 19. **The LLM free tier ran out of quota during live testing** (Day 8). The engine degraded as designed, and a new key cleared it. Lesson: the live odd-input run spends quota, so it must not be run near a demo.
+20. Medical and war wording appeared on a told film (Day 8). Found only by reading a real response. The type and name filters now cover it. and 21. The rate limiter blocked my own smoke test (Day 8). The limiter was right: the test now waits a minute before its validation calls.
 
 ## 6. Known limits
 
@@ -211,7 +218,7 @@ Genie uses Qloo four ways. It resolves every favourite a family names to a Qloo 
 Qloo has entities for artists and places, but not for individual songs or dishes. Genie resolves by type, moves from a song to its artist, treats dishes as taste tags, and labels anything it could not find as "not in Qloo" instead of hiding it. Qloo's own tags are not always right for a family's screen, so we filter wording about ageing and end of life before anything is shown. Every wish says whether it came from what the family told us or from a Qloo guess. We also measured an LLM that rewrites wish wording: our safety checks accepted it about four times in five, but we kept the reviewed templates as the default, because this is a product where every sentence should be one we chose. And we made the comparison with a general AI fair: it gets the same facts, no Qloo data, and the same tone rules, and if it cannot answer we say so.
 
 **For the Devpost description, Challenges (Day 8 addition):**
-We made the agent safe to demo, not only to build. Qloo's answers are cached privately and restored when the server starts, so a redeploy does not start cold. A circuit breaker makes the agent fail fast and honestly when a service is down, and we test that by pointing it at a dead address. We fed it odd input on purpose (empty names, emoji, scripts in four languages, injected code, 5000-character answers) and made it a rule that it never crashes. We also found that a guessed film for an older person could carry tags about communal conflict, so Genie now skips any guess with heavy or end-of-life themes instead of showing it.
+We made the agent safe to demo, not only to build. Qloo's answers are cached privately and restored when the server starts, so a redeploy does not start cold. A circuit breaker makes the agent fail fast and honestly when a service is down, and we test that by pointing it at a dead address. We fed it odd input on purpose (empty names, emoji, scripts in four languages, injected code, 5000-character answers) and made it a rule that it never crashes. We also found that a guessed film for an older person could carry heavy-theme tags, so Genie now skips any guess with heavy or end-of-life themes instead of showing it.
 
 **For the README, Engine section:**
 The engine is in `backend/engine/`. Set `QLOO_API_KEY` (and optionally `LLM_API_KEY`, `LLM_MODEL`, `LLM_BASE_URL`) in `backend/.env`. The backend calls `run_agent(person, inputs)`, and for the other screens `pick_reaction_cards`, `apply_reactions`, `side_by_side` and `generate_bedside_kit`. Run `python engine\test_offline.py`, `test_wishes.py`, `test_agent.py`, `test_reaction.py`, `test_sidebyside.py`, `test_kit.py` and `test_day8.py` for offline tests, and `python engine\live_checks.py` for checks against real Qloo. See `docs/Engine.md`.

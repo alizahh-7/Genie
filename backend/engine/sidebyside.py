@@ -37,6 +37,25 @@ def _facts(inputs):
     return fav[:20], notes[:10]
 
 
+def _is_demo(person, fav, notes):
+    """Only the two fictional demo people are cached. A typed person's answer can contain a first name."""
+    try:
+        try:
+            from .personas import PERSONAS
+        except ImportError:
+            from personas import PERSONAS
+        for spec in PERSONAS.values():
+            p, i = spec["person"], spec["inputs"]
+            f2, n2 = _facts(i)
+            if (person.get("first_name") == p["first_name"] and person.get("birth_year") == p["birth_year"]
+                    and person.get("region") == p["region"] and person.get("language") == p["language"]
+                    and fav == f2 and notes == n2):
+                return True
+    except Exception:
+        pass
+    return False
+
+
 def generic_wishes(person, inputs):
     """A plain LLM answer from the same facts, no Qloo. Returns {available, wishes, filtered, message}."""
     try:
@@ -45,7 +64,8 @@ def generic_wishes(person, inputs):
         payload = {"first_name": person.get("first_name"), "birth_year": person.get("birth_year"),
                    "region": person.get("region"), "language": person.get("language"),
                    "favourites": fav, "family_notes": notes}
-        data = llm.chat_json(SYSTEM, json.dumps(payload, ensure_ascii=False), max_tokens=2000, timeout=20)
+        data = llm.chat_json(SYSTEM, json.dumps(payload, ensure_ascii=False), max_tokens=2000, timeout=20,
+                             cache=_is_demo(person, fav, notes))
         rows = data.get("wishes") if isinstance(data, dict) else None
         if not isinstance(rows, list):
             return {"available": False, "wishes": [], "filtered": 0, "message": UNAVAILABLE}

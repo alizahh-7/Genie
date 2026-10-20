@@ -53,14 +53,17 @@ def reset_breaker():
 
 
 # tag types that describe the audience, not the thing. Useless for matching makers.
-_DROP_TAG_TYPES = ("audience", "obscurity", "complexity", "age_range", "customer_identity")
+_DROP_TAG_TYPES = ("audience", "obscurity", "complexity", "age_range", "customer_identity",
+                   "keyword:media", "amenity", "nearby_attraction", "time_of_day_fit", "visit_intent")
 
 # tag names that must not reach a family-facing screen or a match: ageing and end-of-life wording (the tone
 # rules forbid it), heavy themes, and religion-plus-family labels on content. Genre tags (Sufi, Devotional) are kept.
 _DROP_TAG_NAMES = re.compile(
     r"\b(old age|ageing|aging|elderly|old (?:man|woman|men|women)|longevity|mortality|death|dying|funeral|grief|"
     r"mourn\w*|bereave\w*|terminal|illness|disease|cancer|dementia|alzheimer\w*|hospice|hospital|suicide|"
-    r"communal\w*|riot\w*|terror\w*|massacre\w*|genocide|murder\w*|abus\w*)\b|"
+    r"communal\w*|riot\w*|terror\w*|massacre\w*|genocide|murder\w*|abus\w*|"
+    r"medical|medicine|surgeon|surgery|doctor|nurse|clinic\w*|patient|virus|outbreak|epidemic|pandemic|"
+    r"war|warfare|military|army|soldier\w*|demilitari\w*)\b|"
     r"\b(muslim|hindu|christian|jewish|sikh|buddhist)\s+(family|families|community|characters?|protagonists?)\b", re.I)
 
 # extra themes that make an era-and-place GUESS a bad idea for a family screen (the guess is skipped, not just

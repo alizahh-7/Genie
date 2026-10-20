@@ -47,10 +47,11 @@ Genie turns "what a person loved" into a Taste Portrait and then into wishes. Th
 | `test_reaction.py` | 34 offline checks for Reaction Mode. |
 | `test_sidebyside.py` | 21 offline checks for the comparison: fairness, tone filter, evidence, failures. |
 | `test_kit.py` | 17 offline checks for the Bedside Kit: order, wording rules, empty and junk input. |
-| `test_day8.py` | 21 offline checks for the Day 8 fixes: the 30-item cap, heavy-theme skip, tag filter, no waiting on stuck calls, circuit breaker, step wording. |
+| `test_day8.py` | 31 offline checks for the Day 8 fixes (cap, heavy-theme skip, tag filters, no waiting on stuck calls, circuit breaker, step wording, comparison caching). |
 | `live_checks.py` | Checks against real Qloo and the real LLM: `--level4`, `--extra`, `--l6`, `--llm`, `--wishes`, `--agent`, `--reaction`, `--compare`, `--kit`. |
 | `test_engine.py` | Ladder checks and the "Nani" demo portrait. |
 | `coverage_test_v2.py`, `coverage_run.py` | The original 40-input coverage test, and a re-run through the real ladder. |
+| `smoke_api.py` (in backend/) | Runs every stateless engine route for both demo people against a running server (python smoke_api.py [url]). |
 
 Backend-level files for the private cache (they use the database, so they live next to `main.py`, not in the engine): `backend/engine_cache_store.py` (`init`, `snapshot`, `restore`, `stats`), `backend/test_cache_store.py` (8 offline checks) and `backend/migrations/006_engine_cache.sql`.
 
@@ -189,7 +190,7 @@ Safeguards that stay with the interface (from the project plan): a visible Stop 
 `side_by_side(person, inputs)` answers the hackathon's central question ("would this work the same without Qloo?") with a live, honest comparison.
 - **Fair by design.** The general AI gets exactly the facts the family gave (first name, birth year, region, language, favourites, circle notes) and no Qloo data. It is asked for 5 wishes in the same tone, and held to the same tone filter as Genie's wishes (no medical wording, no exclamation marks); the response says how many it filtered.
 - **No invented results.** If the general AI does not answer in time, the response says so (`available: false` with a message) and Genie's side is still complete.
-- **Both run in parallel.** The general AI's answer is cached per prompt, so a demo person can be pre-warmed. The prompt includes the family notes, so a demo person only hits the cache when the request is exactly the persona's inputs (see `personas.py`).
+- **Both run in parallel.** The general AI's answer is cached per prompt(since Day 8, only for the two demo people), so a demo person can be pre-warmed. The prompt includes the family notes, so a demo person only hits the cache when the request is exactly the persona's inputs (see `personas.py`).Since Day 8 the answer is cached only for the two demo people, because a typed person's answer can contain their first name.
 - **Evidence from real results:** how many of Genie's wishes carry taste tags, how many told items Qloo found, how many Qloo calls were made, and the discovery wish with its "why" and match score. The general AI's side reports that it had no taste data, and its wishes carry no source.
 - What Genie adds is evidence and structure, not necessarily nicer prose: taste links from Qloo, an honest label for where each wish came from, a discovery with a score, and a maker type it can match to a real Wish Maker. In our runs the general AI's wishes read well, and some suggest eating or drinking in the room, which Genie's wishes route through a recipe, a video, or a "ask the care team first" note.
 
@@ -230,10 +231,11 @@ Example: a told song matched via its artist (level 3) is 0.9 x 0.7 = 0.63.
   - With Qloo unreachable, `run_agent` for one unknown favourite returned in about 14 seconds when the host silently drops packets (33 seconds before the breaker) and about 8 seconds when the connection is refused (9 before).
   - The longest odd-input cases took about 20 seconds, which is the portrait limit.
 - An uncached Qloo call takes roughly 3-6 seconds (the discovery call about 6 seconds), a cached one under 100 ms. Portrait items are resolved in parallel (5 workers) with a 20 second overall limit. Anything still pending at the limit becomes level 6.
+- **Privacy of the cache.** The cache holds Qloo responses and cached LLM answers. The general AI's comparison answer can contain the first name that was typed, so it is cached only for the two fictional demo people (exactly the inputs in personas.py) and never for anyone else. Other cached LLM answers (alternate spellings, names pulled out of free text) hold names of favourites, not the person's name. The prompt itself is never stored (the file name is a hash). The cache is not linked to a person record, so DELETE /persons/{id} does not clear it, and on the live server the disk cache is lost on every restart or redeploy. The stored snapshot holds only the two fictional demo people.
 
 ## 8. LLM (optional but recommended)
 
-The LLM is provider-agnostic: any OpenAI-compatible chat endpoint works through `LLM_BASE_URL`. We use Gemini's free tier. Free tiers may use prompts to improve the provider's models, which is why only names and the person's region and language are sent, never surnames, contact details or health data. Mention the third-party AI in the Devpost privacy section.
+The LLM is provider-agnostic: any OpenAI-compatible chat endpoint works through `LLM_BASE_URL`. We use Gemini's free tier. Free tiers may use prompts to improve the provider's models, which is why we send only what is needed (the names of favourites and the person's region and language, plus the first name and birth year for the comparison), never surnames, contact details or health data. Mention the third-party AI in the Devpost privacy section.
 
 Behaviour of `llm.py`:
 - Answers are cached on disk, so repeats are instant and work even when the provider is down.
@@ -247,7 +249,7 @@ Without `LLM_API_KEY` everything still works, using built-in aliases and parent 
 - Level 2/3 for unseen names: only names in the built-in tables get alternate spellings or a parent.
 - The general AI's side of the comparison (it is an LLM call; the response says it is unavailable).
 
-The LLM receives only names of songs, artists, dishes, places and films (plus the person's region and language) and, if polish is on, the wish text. For the comparison, the general AI also receives the favourites, region, language and the family's circle notes, because that is exactly what Genie was given. The Wish Circle consent note already tells contributors an AI service processes answers.
+The LLM receives only names of songs, artists, dishes, places and films (plus the person's region and language) and, if polish is on, the wish text. For the comparison, the general AI also receives the first name, birth year, region, language, the favourites and the family's circle notes, because that is exactly what Genie was given. The Wish Circle consent note already tells contributors an AI service processes answers.
 
 ## 9. What we learned about Qloo (so nobody repeats it)
 
@@ -258,7 +260,7 @@ The LLM receives only names of songs, artists, dishes, places and films (plus th
 - **Tag ids differ between endpoints.** The same concept comes back with a different id on `/search` and on `/v2/insights`. **Do not match makers to portrait items by raw tag id only; also compare normalised tag names.**
 - **Tag field name differs:** `tag_id` in `/search`, `id` in `/v2/insights`. `clean_tags()` handles both.
 - **Tags are scoped by domain.** The same word has different tag ids for music, film, places and cuisine. Level 4 therefore uses a different language tag for artists and for films.
-- **Tag hygiene.** Qloo describes films and artists with rich tags, and some are wrong for a family-facing screen: ageing and end-of-life words (the interface tone rules forbid clinical or dramatic wording), heavy themes (communal, riot, terror, murder and similar, added on Day 8 after a real response showed them on a guessed film), and identity labels attached to content ("<religion> family"). `clean_tags()` drops audience-style tag types and tags with those words in their name. Genre tags are kept (for example a devotional or Sufi genre), because they describe the music. Edge case: a genre whose name contains a dropped word (for example a metal subgenre with "death" in its name) loses that tag. `is_heavy()` is the stricter test used to skip a whole level-4 guess.
+- **Tag hygiene.** Qloo describes films and artists with rich tags, and some are wrong for a family-facing screen: ageing and end-of-life words (the interface tone rules forbid clinical or dramatic wording), heavy themes (communal, riot, terror, murder and similar, added on Day 8 after a real response showed them on a guessed film), and identity labels attached to content ("<religion> family"). `clean_tags()` drops audience-style tag types and tags with those words in their name. Genre tags are kept, because they describe the music. Edge case: a genre whose name contains a dropped word loses that tag. `is_heavy()` is the stricter test used to skip a whole level-4 guess.A second pass (Day 8) dropped medical, outbreak and war wording from tag names, free-form media keywords, and place facets such as amenities and nearby attractions, after a real portrait showed medical-drama wording on a told film.
 - **Not every search hit has tags.** Duet entries and some namesakes have none. The resolver prefers hits that have tags, then higher popularity.
 - **Invalid parameters are silently ignored.** An empty 200 response usually means a parameter is not valid for that `filter.type`, not that data is missing. Where the guide and the OpenAPI definition disagree, trust the OpenAPI definition.
 - **`destination` insights require `signal.interests.entities`.**
@@ -284,6 +286,7 @@ The LLM receives only names of songs, artists, dishes, places and films (plus th
 - Free-tier LLM latency varies. The breaker and cache make this safe, but the first call after a pause can fail.
 - The private cache snapshot only helps if it was taken from a clean demo-persona cache (see 7). If the snapshot is missing, the first run of a demo person after a deploy is cold.
 - Parking lot (not built, per the feature freeze): Clue Box (photo or voice upload), a `discovered` field on discovery wishes (needs a column in the `wish` table), cross-domain additions in Reaction Mode, a cap on how many tags the interface shows per item.
+- A typed person's first name is not written to the cache. The cache is still not covered by "delete everything", and a name typed inside a free-text circle answer could survive in an extracted-names answer (rare).
 
 ## 11. Next steps (from the 10-day plan)
 
@@ -299,7 +302,7 @@ The LLM receives only names of songs, artists, dishes, places and films (plus th
 
 | Check | Command (from `backend/`) | Pass means |
 |---|---|---|
-| Offline suites | the eight test commands in section 3 | all pass (188 engine checks and 8 cache-store checks) |
+| Offline suites | the eight test commands in section 3 | all pass (198 engine checks and 8 cache-store checks) |
 | Odd inputs | `python engine\live_odd.py` | 43 of 43: nothing raises, shapes are valid, the portrait never exceeds 30 items, no clinical words or exclamation marks |
 | Qloo outage, refused | `$env:QLOO_API_URL="http://127.0.0.1:9"; python engine\live_odd.py --outage qloo; Remove-Item Env:QLOO_API_URL` | 2 of 2, level-6 items, a follow-up, about 8 seconds |
 | Qloo outage, black hole | same with `http://10.255.255.1` | 2 of 2, about 14 seconds |

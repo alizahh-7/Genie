@@ -60,7 +60,7 @@ Checks against the real Qloo API: `python engine\live_checks.py` (flags in `docs
 ## Privacy
 No accounts. Minimal data (first name, birth year, region, favorites). Everything for a person can be deleted with one call, and demo data expires automatically. Secrets live in environment variables only.
 
-Genie uses third-party AI. Qloo receives the names of favourites. If an LLM key is set, the LLM receives names of songs, artists, dishes, places and films plus the person's region and language. For the side-by-side comparison, the general AI also receives the favourites and the family's Wish Circle notes, because that is exactly what Genie was given. Wish Circle contributors see this in the consent note. Free-tier LLM services may use prompts to improve their models, so never enter real people's details in the demo.
+Genie uses third-party AI. Qloo receives the names of favourites. If an LLM key is set, the LLM receives names of songs, artists, dishes, places and films plus the person's region and language. For the side-by-side comparison, the general AI also receives the first name, birth year, region, language, the favourites and the family's Wish Circle notes, because that is exactly what Genie was given. Wish Circle contributors see this in the consent note. Free-tier LLM services may use prompts to improve their models, so never enter real people's details in the demo.
 
 All Wish Makers in this build are fictional samples. Demo data is fictional only.
 
