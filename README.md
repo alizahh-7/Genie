@@ -51,6 +51,8 @@ python test_cache_store.py
 
 Checks against the real Qloo API: `python engine\live_checks.py` (flags in `docs/Engine.md`), `python engine\live_odd.py` (odd inputs and outages) and `python engine\prewarm_run.py` (demo people, run twice, the second pass must be fast).
 
+The whole path through the real API (create a person, run the agent, compare, compile and share a Wish Book, revoke, delete) for ten varied fictional people: python judge_test.py (server running; add --extra for two odd ones).
+
 ## Docs
 - `docs/Engine.md` how the engine works
 - `docs/engine-contract.md` the exact input and output shapes

@@ -47,11 +47,12 @@ Genie turns "what a person loved" into a Taste Portrait and then into wishes. Th
 | `test_reaction.py` | 34 offline checks for Reaction Mode. |
 | `test_sidebyside.py` | 21 offline checks for the comparison: fairness, tone filter, evidence, failures. |
 | `test_kit.py` | 17 offline checks for the Bedside Kit: order, wording rules, empty and junk input. |
-| `test_day8.py` | 31 offline checks for the Day 8 fixes (cap, heavy-theme skip, tag filters, no waiting on stuck calls, circuit breaker, step wording, comparison caching). |
+| `test_day8.py` | 46 offline checks for the Day 8 fixes (cap, heavy-theme skip, tag filters, no waiting on stuck calls, circuit breaker, step wording, comparison caching). |
 | `live_checks.py` | Checks against real Qloo and the real LLM: `--level4`, `--extra`, `--l6`, `--llm`, `--wishes`, `--agent`, `--reaction`, `--compare`, `--kit`. |
 | `test_engine.py` | Ladder checks and the "Nani" demo portrait. |
 | `coverage_test_v2.py`, `coverage_run.py` | The original 40-input coverage test, and a re-run through the real ladder. |
 | `smoke_api.py` (in backend/) | Runs every stateless engine route for both demo people against a running server (python smoke_api.py [url]). |
+| `judge_test.py` (in backend/) | Drives the real API for 10 varied people (12 with --extra) from creation to a printed, shared, revoked and deleted Wish Book (python judge_test.py [url] [--extra] [--only 3,9] [--keep]) |
 
 Backend-level files for the private cache (they use the database, so they live next to `main.py`, not in the engine): `backend/engine_cache_store.py` (`init`, `snapshot`, `restore`, `stats`), `backend/test_cache_store.py` (8 offline checks) and `backend/migrations/006_engine_cache.sql`.
 
@@ -154,7 +155,8 @@ Notes:
 - **Anchors.** It uses items the family told us (or the person reacted to). If there are none, it falls back to "likely" items and labels the wishes `likely`.
 - **Discovery.** One `/v2/insights` call with the anchors as `signal.interests.entities` (food tags go to `signal.interests.tags`), asking for artists with `feature.explainability=true`. Artists already in the portrait are removed. The anchors Qloo weighted most become the "why", and `query.affinity` is the match score. The wish is labelled `likely` and says it is a guess.
 - **Realism filter.** Remote wishes first (lowest risk, works from anywhere). At most one in-person wish, always last, with a reserved slot. A place visit is in-person only if the place matches the person's region. Discoveries are always "a musician plays in that spirit", never a celebrity. Any wish with medical or clinical wording is dropped.
-- **Follow-up.** If fewer than 3 usable items exist, `follow_up` carries one gentle question for the UI.
+- **Films and guesses (Day 9).** A told film gets its own remote wish ("An evening with ..."), so a portrait with only a film still gets at least three wishes when Qloo answers. A guessed film does not get a wish of its own (we know nothing about its tone). Wishes built only from guessed items say so ("in the spirit of ..., a guess from their era and region") and never call a guess a favourite.
+- **Follow-up.** If fewer than 3 items are told or reacted, follow_up carries one gentle question for the UI. Guessed items never count, so a person typed with nothing still gets the question.
 
 ### LLM polish (optional, off by default in `run_agent`)
 One LLM call can soften the wording. Each rewrite is accepted or rejected on its own: it must keep every name, a discovery must still say it is a guess, an in-person wish must still mention a family member, and there may be no medical wording, exclamation marks or over-long text. A rejected rewrite keeps its template.
@@ -287,6 +289,7 @@ The LLM receives only names of songs, artists, dishes, places and films (plus th
 - The private cache snapshot only helps if it was taken from a clean demo-persona cache (see 7). If the snapshot is missing, the first run of a demo person after a deploy is cold.
 - Parking lot (not built, per the feature freeze): Clue Box (photo or voice upload), a `discovered` field on discovery wishes (needs a column in the `wish` table), cross-domain additions in Reaction Mode, a cap on how many tags the interface shows per item.
 - A typed person's first name is not written to the cache. The cache is still not covered by "delete everything", and a name typed inside a free-text circle answer could survive in an extracted-names answer (rare).
+- The judge test is run against a local server; the deployed site and the frontend are checked separately.
 
 ## 11. Next steps (from the 10-day plan)
 
@@ -302,7 +305,7 @@ The LLM receives only names of songs, artists, dishes, places and films (plus th
 
 | Check | Command (from `backend/`) | Pass means |
 |---|---|---|
-| Offline suites | the eight test commands in section 3 | all pass (198 engine checks and 8 cache-store checks) |
+| Offline suites | the eight test commands in section 3 | all pass (213 engine checks and 8 cache-store checks) |
 | Odd inputs | `python engine\live_odd.py` | 43 of 43: nothing raises, shapes are valid, the portrait never exceeds 30 items, no clinical words or exclamation marks |
 | Qloo outage, refused | `$env:QLOO_API_URL="http://127.0.0.1:9"; python engine\live_odd.py --outage qloo; Remove-Item Env:QLOO_API_URL` | 2 of 2, level-6 items, a follow-up, about 8 seconds |
 | Qloo outage, black hole | same with `http://10.255.255.1` | 2 of 2, about 14 seconds |
@@ -312,3 +315,4 @@ The LLM receives only names of songs, artists, dishes, places and films (plus th
 | Server restore | delete `engine\_cache`, start `uvicorn main:app --reload` | the log shows `[engine cache] restored N files` |
 | Copy audit | `python engine\copy_audit.py`, then the team reads `engine\_review\copy_review.txt` aloud | 0 flags, and every line sounds right aloud |
 | Secrets | from the repo root: `git ls-files backend/.env`, `git log --all --oneline -- backend/.env`, `git grep -n "AIza"`, `git log --all -S "AIza" --oneline`, and the same `-S` search with the first 8 characters of the Qloo key | all print nothing |
+| Judge test | python judge_test.py (server running) | every person reaches a printed Wish Book with no failed check; python judge_test.py --extra adds two odd people |.

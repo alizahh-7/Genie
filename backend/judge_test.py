@@ -196,6 +196,11 @@ def check_run(res, P, run):
     texts = [(w.get("title") or "") + " " + (w.get("description") or "") for w in wishes]
     texts += [s.get("summary") or "" for s in steps] + [follow or ""]
     res.ok("wishes, steps and follow-up are calm", not any("!" in t or CLINICAL.search(t) for t in texts))
+    if len(told) < 3:
+        res.ok("fewer than 3 told items: a gentle follow-up question is returned", bool(follow))
+    if items and not told:
+        res.ok("wishes built only from guesses do not call them favourites",
+               not any("favourite" in (w.get("description") or "").lower() for w in wishes))
     res.ok("every wish has a basis of told or likely", all(w.get("basis") in ("told", "likely") for w in wishes))
     disc = [w for w in wishes if w.get("kind") == "discovery"]
     res.ok("a discovery wish says it is a guess and says why",

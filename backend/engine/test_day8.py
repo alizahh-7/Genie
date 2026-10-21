@@ -213,5 +213,48 @@ kept5 = {t["name"] for t in qc.clean_tags(hit5)}
 check("Bombay, Patriotism and Warm are kept", {"Bombay cinema", "Patriotism", "Warm"} <= kept5)
 check("Bomb threat is dropped", "Bomb threat" not in kept5)
 
+print("wishes: film-only portrait, follow-up rule, honest wording for guesses")
+from engine import wishes as wz
+
+
+def wit(domain, name, label="told"):
+    return {"domain": domain, "name": name, "qloo_entity_id": "E-" + name, "tags": [{"id": "t1", "name": "Romance"}],
+            "source_label": label, "confidence": 0.9 if label == "told" else 0.3,
+            "resolution_level": 1 if label == "told" else 4, "matched_name": name}
+
+
+class DownQ:
+    def __init__(self): self.log = []
+    def get(self, path, params, step="call"): return None, "timeout"
+
+
+SEOUL = {"first_name": "T", "birth_year": 1985, "region": "Seoul", "language": "Korean"}
+fo = wz.generate_wishes([wit("film", "Some Film")], SEOUL, client=Stub(), use_llm=False)["wishes"]
+check("a film-only portrait gets at least 3 wishes", len(fo) >= 3)
+check("the film gets its own remote wish", any("Some Film" in w["title"] and w["mode"] == "remote" for w in fo))
+dn = wz.generate_wishes([wit("film", "Some Film")], SEOUL, client=DownQ(), use_llm=False)["wishes"]
+check("film-only with Qloo down still returns wishes", len(dn) >= 2)
+
+likely4 = [wit("music", f"Guess {i}", "likely") for i in range(4)]
+told3 = [wit("music", f"Fav {i}") for i in range(3)]
+mixed = [wit("music", "Fav 1"), wit("music", "Fav 2")] + likely4
+check("guesses only: the gentle question is still asked",
+      wz.generate_wishes(likely4, SEOUL, client=Stub(), use_llm=False)["follow_up"] == wz.FOLLOW_UP)
+check("3 told items: no question",
+      wz.generate_wishes(told3, SEOUL, client=Stub(), use_llm=False)["follow_up"] is None)
+check("2 told plus guesses: the question is asked",
+      wz.generate_wishes(mixed, SEOUL, client=Stub(), use_llm=False)["follow_up"] == wz.FOLLOW_UP)
+
+gw = wz.generate_wishes(likely4, SEOUL, client=Stub(), use_llm=False)["wishes"]
+mw = [w for w in gw if w["kind"] == "music"]
+check("guess-based wishes say it is a guess", bool(mw) and all("guess" in w["description"].lower() for w in mw))
+check("guess-based wishes never call guesses favourites", not any("favourite" in w["description"].lower() for w in gw))
+check("guess-based wishes are labelled likely", bool(gw) and all(w["basis"] == "likely" for w in gw))
+tw = wz.generate_wishes(told3, SEOUL, client=Stub(), use_llm=False)["wishes"]
+check("told wishes keep their wording", any("favourites" in w["description"] for w in tw))
+
+gf = wz.generate_wishes([wit("music", "Guess A", "likely"), wit("film", "Odd Film", "likely")],
+                        SEOUL, client=Stub(), use_llm=False)["wishes"]
+check("a guessed film does not get a wish of its own", not any("Odd Film" in w["title"] for w in gf))
 print(f"\n{'all passed' if not fails else str(fails) + ' FAILED'}")
 sys.exit(1 if fails else 0)

@@ -1,9 +1,9 @@
-# Genie: Engine Work Report, Days 1 to 8
+# Genie: Engine Work Report, Days 1 to 9
 
 **Project:** Genie, an AI agent that learns who someone was through what they loved, suggests personal wishes, and finds the people who can fulfil them. Built on Qloo's taste graph for the Qloo Agentic Hackathon.
 **Author:** Umaima
 **Role in the team:** Agent and Qloo engine
-**Dates of work:** Oct 15 to 19, 2026
+**Dates of work:** Oct 15 to 20, 2026
 **Team:** Umaima (agent and Qloo engine), Alizah and Zunairah (frontend and backend, roles swapped from the plan: Alizah on screens and copy, Zunairah on backend, data, deployment and submission)
 **Companion documents:** `docs/Engine.md` (how the engine works), `docs/engine-contract.md` (exact input and output shapes, v1.5), `docs/coverage-report.md` (Qloo coverage test).
 
@@ -14,6 +14,8 @@
 Genie has three layers: the frontend, the backend and database, and the engine (this report). The engine is the part that makes Genie depend on Qloo. It turns what a family tells us into a Taste Portrait, turns the portrait into wishes, learns from a person's reactions, compares itself honestly with a general AI, builds a Bedside Kit for care rooms, explains what it did, and records every Qloo call so the interface can show it.
 
 The engine is plain Python in `backend/engine/`. It never touches the database: the backend calls it and stores what it returns. It never raises errors to its caller, so a Qloo or LLM outage degrades the result and never breaks the app. The feature freeze started after Day 7. Day 8 was polish only: a demo that cannot fall over, honest behaviour on odd inputs and outages, copy the team can read aloud, and a repo free of Qloo data and secrets.
+
+Day 9 ran the judge test: twelve fictional people through the real API to a printed Wish Book.
 
 ## 2. What was built
 
@@ -78,6 +80,17 @@ Day 8 added no features. Everything below came from checking the engine against 
 - **Repo hygiene.** Secret scan of the repo and its history (the `.env` file, the Gemini key prefix and the Qloo key prefix): nothing found. `.gitignore` gains `_review/`. `.env.example` gains `ENGINE_CACHE_RESTORE`.
 - **New offline suites:** `engine/test_day8.py` (21 checks) and `backend/test_cache_store.py` (8 checks).
 
+### Day 9: the judge test (Oct 20)
+- **`backend/judge_test.py`** drives the real API like a browser: create a person, a Wish Circle answer (for one person), `agent/run`, the comparison and reading it back, Wish Book compile, share, the shared page and the printable page, revoke, and delete. It reads the real routes from `/openapi.json`, paces itself under the per-minute rate limits and the free-tier AI quota, and deletes everything it creates. Results go to a git-ignored file, because they can contain Qloo tag names.
+- **Twelve fictional people:** ten varied ones (Hindi, Korean, Telugu, Urdu, Arabic, English, Tamil, a film-only person, a person with nothing typed, and a judge's own person with a misspelling, a song title and a Wish Circle answer containing markup) plus two odd ones (nonsense names; angle-bracket text and a 70-character name).
+- **About 35 checks per person:** every typed favourite is in the portrait; labels, levels and domains are valid; guesses are labelled "likely"; at most 30 items and 5 wishes; at most one in-person wish, and it is last; calm wording (no medical words, no exclamation marks); a discovery wish says it is a guess and says why; a gentle follow-up question when fewer than 3 items are told; wishes built only from guesses never call them favourites; the printed page has the "not a medical service" notice, no Qloo ids and no person id; typed markup is not live on the page; a revoked link returns 404 on both pages; delete everything and the person is gone.
+- **Fixes the test found.**
+  1. **No follow-up question for a thin portrait.** `wishes.py` counted guessed items as usable, so a person with one told favourite and three guesses got no question. Now the question is asked whenever fewer than 3 items are told or reacted. Six of the ten people were affected, and the first run only checked one.
+  2. **A film-only portrait got only 2 wishes.** There was no template for a film. A told film now gets its own remote storyteller wish. A guessed film does not, because we know nothing about a guessed story's tone.
+  3. **Wishes built from guesses called them favourites.** Such wishes now say "in the spirit of ..., a guess from their era and region". Wishes from told items keep their wording.
+- **Fixes in the script itself.** A "heavy-theme" warning fired on a tag containing "riot" inside a longer word (a harmless theme). The pattern is now word-bounded, and so is the engine's tag filter for the new disaster and conflict words (so "Bombay" and "Patriotism" are kept). A calm 409 from the comparison for a person with nothing typed is accepted as correct.
+- **New tag wording filtered:** earthquake, disaster, special forces, peacekeeping, combat, battle, weapon, hostage, bomb and explosion, after a told film still showed some of it.
+
 ## 3. Test evidence
 
 | # | Check | Result |
@@ -120,8 +133,18 @@ Day 8 added no features. Everything below came from checking the engine against 
 | 36 | Day 8: tag filter second pass, 4 checks in test_day8.py | PASS |
 | 37 | Day 8: comparison cache privacy, 6 checks in test_day8.py | PASS |
 | 38 | Day 8: scrub greps (Qloo names, tag wording) | PASS. No Qloo names in the repo. The tag-wording search only shows our own filter words. |
+| 39 | Day 9: `judge_test.py`, first run, 10 people, cold cache | 8 of 10 with no failed check. 3 failed checks (a film-only person got 2 wishes, a person with nothing typed got no follow-up question, the comparison for that person returned 409) and 3 warnings (a script false alarm). |
+| 40 | Day 9: the 409 message for a person with nothing typed | Calm: "Add some favorites before comparing". Accepted as correct. (Spelling differs from the rest of the product: favorites / favourites.) |
+| 41 | Day 9: `test_day8.py` after the fixes | 46 of 46 pass |
+| 42 | Day 9: the other seven suites after the fixes | all pass (167 engine checks and 8 cache-store checks, unchanged) |
+| 43 | Day 9: `judge_test.py --only` the five affected people, then `--extra` (12 people) | 5 of 5, then 12 of 12. 0 failed checks, 0 warnings. |
+| 44 | Day 9: time to first result, new person, cold cache (first run) | 6.0 to 27.0 seconds, median 13.8. The slowest case includes a Wish Circle answer read by the AI. Warm cache 3 to 8 seconds. The comparison took 2.8 to 23.2 seconds. |
+| 45 | Day 9: printed Wish Book safety on every person | Notice present, no Qloo ids, no person id, typed markup not live, revoked link 404 on both pages |
+| 46 | Day 9: Save as PDF with Hindi, Korean and Arabic text | PASS. A test person with favourites typed in Devanagari, Hangul and Arabic script printed to PDF from the browser's print dialog with all three scripts readable. The share link was revoked and the person deleted afterwards. |
+| 47 | Day 9: `judge_test.py` against the deployed site | Pending (needs the redeploy) |
+| 48 | Day 9: browser click-through of the same people with the frontend | Pending (needs the screens wired) |
 
-Total offline checks: 188 in the engine (167 + 21), plus 8 for the cache store.
+Total offline checks: 213 in the engine (167 + 46), plus 8 for the cache store.
 
 ## 4. Decisions and reasons
 
@@ -157,6 +180,7 @@ Total offline checks: 188 in the engine (167 + 21), plus 8 for the cache store.
 | The outage test uses one unknown favourite | With three unknown told items a portrait is not "thin", and the engine is right to still make wishes. |
 | The comparison cache only helps for a demo person's exact inputs | The general AI's prompt includes the favourites and the family notes. The demo buttons must send the persona's exact inputs. |
 | The comparison answer is cached only for the demo people | It can contain a typed person's first name, and delete-everything does not clear the cache. |
+| Only a told film gets a wish of its own | A guessed film's story and tone are unknown, and the title can read oddly aloud. |, | A follow-up question is asked whenever fewer than 3 items are told or reacted | Guesses are not knowledge, and the plan says to always ask one gentle question when the portrait is thin. |, | The judge test drives the real API, not the engine directly | It exercises the same path a browser does, including the backend's matching, Wish Book and deletion. |.
 
 ## 5. Challenges
 
@@ -180,6 +204,11 @@ Total offline checks: 188 in the engine (167 + 21), plus 8 for the cache store.
 18. **The cache store failed at first** (Day 8): the table did not exist yet. Fix: an `init` command that creates it through the same connection the backend uses, so nobody needs the Supabase screen. A small bug (the usage text printing after `init`) was fixed the same day.
 19. **The LLM free tier ran out of quota during live testing** (Day 8). The engine degraded as designed, and a new key cleared it. Lesson: the live odd-input run spends quota, so it must not be run near a demo.
 20. Medical and war wording appeared on a told film (Day 8). Found only by reading a real response. The type and name filters now cover it. and 21. The rate limiter blocked my own smoke test (Day 8). The limiter was right: the test now waits a minute before its validation calls.
+21. **A thin portrait asked no follow-up question** (Day 9). Guessed items counted as usable. Found by the judge test; the first run only checked one of the six affected people.
+22. **A film-only portrait got two wishes** (Day 9). There was no film template, and the guessed-film version was rejected as a poor idea.
+23. **Wishes from guesses called them favourites** (Day 9). A statement the engine could not know. Wording now says it is a guess.
+24. **My judge script cried wolf** (Day 9). A pattern for "riot" matched "Patriotism". Word boundaries fixed it, in the script and in the engine's own filter.
+25. **The server was not running** (Day 9) when one re-test started, and the script correctly reported it instead of failing silently.
 
 ## 6. Known limits
 
@@ -198,14 +227,17 @@ Total offline checks: 188 in the engine (167 + 21), plus 8 for the cache store.
 - The Wish Circle answer keys are `music`, `food`, `place`, `film` and `joy`. The engine maps the first four. `joy` ("what made them light up") is read only when the LLM is on.
 - Parking lot (not built, per the feature freeze): Clue Box, a `discovered` field on discovery wishes, cross-domain additions in Reaction Mode, a cap on how many tags the interface shows per item.
 - Screens for the "what Genie did" panel, Reaction Mode, the comparison and the Bedside Kit, and the first live deploy, belong to the frontend and backend owners.
+- The judge test has only run against a local server. The deployed site and the frontend are still to be run through the same twelve people.
+- A new person is limited to 30 per hour per address, so the judge test should not be run more than twice an hour.
 
 ## 7. What is next
 
 | Day | Engine task |
 |---|---|
 | 8 | Done (see above). Remaining: the three pending checks in section 3 (rows 33 to 35), then the commit. |
-| 9 | Judge test with 10 varied people end to end. Technical README and Qloo notes for the Devpost description. Re-take the cache snapshot only from a clean demo-persona cache. Do not run `live_odd.py` near the demo. |
+| 9 | Done on the engine side: judge test and fixes. Remaining: Save as PDF check, deployed run, browser click-through, team read-aloud. |
 | 10 | Final bug fixes with the team, demo video if there is time |
+
 
 Open questions for the team are listed in `docs/engine-contract.md` ("Status of the open questions"). Since Day 8 the Wish Circle answer keys are answered (see above).
 
@@ -222,3 +254,5 @@ We made the agent safe to demo, not only to build. Qloo's answers are cached pri
 
 **For the README, Engine section:**
 The engine is in `backend/engine/`. Set `QLOO_API_KEY` (and optionally `LLM_API_KEY`, `LLM_MODEL`, `LLM_BASE_URL`) in `backend/.env`. The backend calls `run_agent(person, inputs)`, and for the other screens `pick_reaction_cards`, `apply_reactions`, `side_by_side` and `generate_bedside_kit`. Run `python engine\test_offline.py`, `test_wishes.py`, `test_agent.py`, `test_reaction.py`, `test_sidebyside.py`, `test_kit.py` and `test_day8.py` for offline tests, and `python engine\live_checks.py` for checks against real Qloo. See `docs/Engine.md`.
+
+**Devpost, Challenges (Day 9 addition):** We tested the whole path with twelve fictional people, from a Hindi film-song lover to a person with nothing typed, plus nonsense names and injected code, from the first keystroke to a printed keepsake. The test found three bugs a unit test would not: a thin portrait asked no follow-up question, a film-only portrait got only two wishes, and wishes built from guesses called them favourites. We fixed all three and re-ran everything.

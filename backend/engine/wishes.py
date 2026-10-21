@@ -108,17 +108,25 @@ def _cands(by, basis, person, discoveries):
                     "tags": _tags_for(srcs), "basis": label or basis, "why": why, "affinity": affinity})
 
     music, food, place = by["music"][:3], by["food"][:1], by["place"][:1]
+    film = by["film"][:1] if basis == "told" else []
+    likely = basis == "likely"
     allitems = [i for d in ("music", "food", "place", "film") for i in by[d]]
     mix = [by[d][0] for d in ("place", "food", "music", "film") if by[d]][:3]
     if music:
         names = " and ".join(i["name"] for i in music[:2])
-        add(1, "music", "Their songs, recorded for them",
-            f"A singer or musician records a few favourites with {names} in mind, just for them. The family can play it whenever they like, from anywhere.",
-            "remote", "musician", music[:2])
+        if likely:
+            d_remote = (f"A singer or musician records a few songs in the spirit of {names}, a guess from their era and region, "
+                        "just for them. The family can play it whenever they like, from anywhere.")
+            d_live = (f"A musician plays a few songs in the spirit of {names}, a guess from their era and region, for them at home "
+                      "with family in the room. This needs a verified Wish Maker and a family member present.")
+        else:
+            d_remote = (f"A singer or musician records a few favourites with {names} in mind, just for them. "
+                        "The family can play it whenever they like, from anywhere.")
+            d_live = (f"A musician plays a few favourites with {names} in mind, for them at home with family in the room. "
+                      "This needs a verified Wish Maker and a family member present.")
+        add(1, "music", "Their songs, recorded for them", d_remote, "remote", "musician", music[:2])
         if region:
-            add(5, "music", "A live evening of their songs",
-                f"A musician plays a few favourites with {names} in mind, for them at home with family in the room. This needs a verified Wish Maker and a family member present.",
-                "in-person", "musician", music[:2])
+            add(5, "music", "A live evening of their songs", d_live, "in-person", "musician", music[:2])
     if food:
         dish = food[0]["name"]
         add(2, "food", f"{_cap(dish)}, the way they loved it",
@@ -138,6 +146,15 @@ def _cands(by, basis, person, discoveries):
             add(7, "place", f"An afternoon at {p}",
                 "A family member and a volunteer take them there, if it is within reach and they are comfortable.",
                 "in-person", "volunteer", place)
+    if film:
+        fname = film[0]["name"]
+        if likely:
+            d_film = (f"A storyteller records a short introduction to {fname}, a guess from their era and region, "
+                      "so the family can watch a scene together if they would like to.")
+        else:
+            d_film = (f"A storyteller records a short introduction to {fname} and what makes it special, "
+                      "so the family can watch a favourite scene together.")
+        add(4.5, "story", f"An evening with {fname}", d_film, "remote", "storyteller", film)
     if allitems:
         add(4, "story", "A memory from someone who was there",
             "A friend or relative from long ago records or writes a few lines about a time they shared. The Wish Circle can invite them.",
@@ -249,4 +266,5 @@ def _generate(items, person, client, use_llm):
     if use_llm and wishes:
         wishes = _polish(wishes)
     wishes = [w for w in wishes if _ok(w)]
-    return {"wishes": wishes, "follow_up": FOLLOW_UP if total < 3 else None, "qloo_log": client.log}
+    told_n = sum(1 for i in items if i.get("source_label") in ("told", "reacted") and i.get("name"))
+    return {"wishes": wishes, "follow_up": FOLLOW_UP if told_n < 3 else None, "qloo_log": client.log}
