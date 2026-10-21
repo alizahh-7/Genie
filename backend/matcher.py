@@ -58,6 +58,7 @@ def item_view(item: dict) -> dict:
         "domain": item.get("domain") or "other",
         "entity_id": str(entity_id).lower() if entity_id else None,
         "own_tag_id": own_tag_id,
+        "matched_name": item.get("matched_name") or "",
         "tag_keys": keys,
         "named_keys": named,
         "confidence": 0.7 if conf is None else float(conf),
@@ -104,6 +105,11 @@ def item_strength(item, mv, maker_name):
     name_n = norm(item["name"])
     if name_n and name_n in mv["own_norm"]:
         return 0.8, "text", f"{maker_name} lists {item['name']}"
+    # A song is resolved through its artist (matched_name). A maker who lists that artist
+    # as plain text, with no Qloo data attached, should still match.
+    via_n = norm(item.get("matched_name"))
+    if via_n and via_n != name_n and via_n in mv["own_norm"]:
+        return 0.8, "text", f"{maker_name} lists {item['matched_name']}, which connects to {item['name']}"
     for key, shown in item["named_keys"].items():
         if key in mv["own_norm"]:
             return 0.5, "qloo", f"{maker_name} lists {shown or key}, whom Qloo links to {item['name']}"

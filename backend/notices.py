@@ -29,8 +29,9 @@ PRIVACY_POINTS = [
     "There are no accounts. Your private link is the key, so keep it safe.",
     "You can delete everything at any time, and data is removed automatically when its retention period ends.",
     "A shared Wish Book can be switched off whenever you like.",
-    "Answers you type are sent to a third-party AI service to pick out the names of songs, dishes, and places.",
+    "Answers you type are sent to a third-party AI service to pick out the names of songs, dishes, and places. Those names are also checked against Qloo, a taste database.",
     "If you open the comparison with a general AI, the first name, birth year, region, language, favorites, and family notes you entered are sent to that AI service too.",
+    "Free AI services may use what they receive to improve their models, so Genie sends only what it needs: never surnames, contact details, or health information.",
 ]
 
 RETENTION_OPTIONS = (7, 30, 90, 365)

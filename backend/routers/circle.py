@@ -10,8 +10,11 @@ from db import get_conn, require_person
 
 CONSENT_NOTE = (
     "Your answers will be seen by the family who invited you. They may appear in a "
-    "keepsake book the family can print or share, and they are processed by an AI "
-    "service to understand what this person loves. You can skip any question."
+    "keepsake book the family can print or share. The names in them (songs, dishes, "
+    "places, films) are checked against Qloo, a taste database, and an AI service "
+    "helps read what you type. Free AI services may use what they receive to improve "
+    "their models, so please leave out surnames, contact details and health details. "
+    "You can skip any question."
 )
 
 QUESTIONS = [

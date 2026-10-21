@@ -21,7 +21,7 @@ def load_context(conn, person_id):
         "select first_name, region, language from person where id = %s", (person_id,)
     ).fetchone()
     portrait = conn.execute(
-        "select domain, name, qloo_entity_id, qloo_tags as tags, confidence "
+        "select domain, name, qloo_entity_id, qloo_tags as tags, confidence, matched_name "
         "from portrait_item where person_id = %s",
         (person_id,),
     ).fetchall()

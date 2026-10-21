@@ -1,4 +1,4 @@
-# Genie engine contract (v1.5)
+# Genie engine contract (v1.5, updated Oct 20)
 
 Engine owner: Umaima. Backend owner: Zunairah.
 
@@ -15,7 +15,7 @@ The engine never touches the database. It returns data and the backend stores it
 
 ## Rules
 
-- Every function returns within a timeout and **never raises** to the caller. Failure comes back as `found: false`, a lower `resolution_level`, fewer wishes, or `available: false`. `build_portrait` has a 20 second overall limit. Uncached Qloo calls take about 3-6 seconds each, so the backend should run the engine in a worker thread or background task with its own timeout (worst case with repeated Qloo timeouts is around 30 seconds).
+- Every function returns within a timeout and **never raises** to the caller. Failure comes back as `found: false`, a lower `resolution_level`, fewer wishes, or `available: false`. `build_portrait` has a 20 second overall limit. Uncached Qloo calls take about 3-6 seconds each, so the backend should run the engine in a worker thread or background task with its own timeout (a dead Qloo now fails in about 14 seconds).
 - All Qloo calls go through one cached client inside the engine.
 - Keys and switches come from environment variables only: `QLOO_API_KEY`, and optionally `LLM_API_KEY`, `LLM_MODEL`, `LLM_BASE_URL`, `WISH_POLISH`. Without the LLM variables everything still works, except the general AI's side of the comparison.
 - Domains are one of: `music`, `food`, `place`, `film`, `other`. (TV shows are treated as `film`.)
@@ -27,7 +27,7 @@ The engine never touches the database. It returns data and the backend stores it
 ## Status of the open questions
 
 - **Confirmed by the backend owner:** the extra wish fields (`kind`, `maker_type`, `tags`, `basis`, `why`, `affinity`) are stored in new columns on `wish`, and the `maker_type` values match the maker types, so matching sends a wish only to makers of that type.
-- **Still open:** (a) the real Wish Circle answer keys (the engine assumes keys containing `music`, `food`, `place`, `film`); (b) a `discovered` column on `wish` (section 3, parked until after the freeze); (c) where the Reaction Mode `tried` list is kept (section 5).
+- **Resolved:** (a) the Wish Circle answer keys are music, food, place, film and joy. The engine maps the first four, and reads joy only when the LLM is on. The backend keeps the Reaction Mode tried list nowhere: the frontend keeps it for the session and sends it back (question c). **Still open:** (b) a discovered column on wish (section 3, parked until after the freeze).
 
 ## What changed from v1
 
@@ -108,8 +108,7 @@ Returns:
     ]
 }
 ```
-
-- At most 30 items. If fewer than 3 resolve, up to 6 level-4 items (`source_label: "likely"`, confidence 0.3) are added. Level 4 reflects the person's age bracket, region and language, not their era specifically, so some of these can look odd. The UI must show them clearly as "likely".
+- At most 30 items, and the 30 includes the level-4 guesses. If fewer than 3 resolve, up to 6 level-4 items (`source_label: "likely"`, confidence 0.3) are added. A level-4 guess with ageing or heavy tags is skipped.
 - Without the LLM, free-text circle answers are split into short names; segments with sentence words ("She sang along to Queen") are not turned into items.
 - `qloo_log.status` is one of `ok`, `cached`, `no results`, `timeout`, `network`, `HTTP <code>`, `no key`.
 - Saving a portrait replaces the previous one, so rebuild with all items, not only the new ones.
@@ -311,12 +310,12 @@ Returns:
 
 ## 8. How the backend should call the engine
 
-- Module path: `backend/engine/` (import `from engine import ...` with `backend/` on the path). `backend/requirements.txt` must include `requests` and `python-dotenv`.
+- Module path: `backend/engine/` (import `from engine import ...` with `backend/` on the path). `backend/requirements.txt` must include `requests` and `python-dotenv` and `psycopg`.
 - Typical flow: collect `quick_facts` and `circle_answers` (from `GET /persons/{id}/circle-responses`), call `run_agent` from a worker thread with your own timeout, save `items` with `POST /persons/{id}/portrait`, save `wishes` with `POST /persons/{id}/wishes`, then run matching.
 - Return `steps`, `qloo_log` and `timings` to the frontend for the "what Genie did" panel and the live Qloo call panel. They do not need to be stored.
 - **Stateless routes** in `backend/routers/agent_demo.py` (nothing stored): `POST /agent/run`, `POST /agent/reaction-cards`, `POST /agent/reactions`, `POST /agent/compare` (same body as `/agent/run`), and `POST /agent/bedside-kit` (body: `person` and `items`). These power the "try it yourself" demo, Reaction Mode, the comparison screen and the Bedside Kit. The person-bound routes under `/persons/{id}/...` are in `routers/agent.py`. Keep only one route per path.
-- Per-IP rate limits should cover `/agent/*`: every call spends Qloo quota, and `/agent/compare` also spends an LLM call.
-- Qloo's cache lives on the server's disk and is wiped on a Render redeploy. After each deploy, run the demo person once (including `/agent/compare`) to warm it.
+- Per-IP rate limits cover `/agent/*` and the stored agent routes: about 10 per minute, and about 5 per minute for compare. Every call spends Qloo quota, and compare also spends an LLM call.
+- A private snapshot of the engine's cache is kept in the database (table engine_cache) and restored at start-up when ENGINE_CACHE_RESTORE=1. Uncached requests still take 3 to 6 seconds, so after each deploy run the demo people once (including `/agent/compare`).
 
 ## Backend endpoints the engine output is stored through
 
