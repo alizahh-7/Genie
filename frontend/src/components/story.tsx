@@ -26,7 +26,7 @@ export function PortraitCard({ item, i }: { item: PortraitItem; i: number }) {
 export function WishCard({ wish, i }: { wish: Wish; i: number }) {
   const tags = (wish.tags ?? []).map(t => t.name).slice(0, 4);
   return (
-    <article className="rise rounded-2xl border border-sagedeep/20 bg-gradient-to-br from-paper to-sand/40 p-7" style={{ animationDelay: `${i * 90}ms` }}>
+    <article className="rise rounded-2xl border border-sagedeep/20 bg-gradient-to-br from-[#28204e] to-[#49385f] text-ivory p-7" style={{ animationDelay: `${i * 90}ms` }}>
       <p className="mb-2 text-sm text-sagedeep">{modeNote(wish.mode)}</p>
       <h3 className="text-3xl">{wish.title}</h3>
       <p className="mt-3">{wish.description}</p>
