@@ -31,7 +31,7 @@ Genie has three layers:
 
 1. **Frontend** (Alizah): the screens families see.
 2. **Engine** (Umaima): the agent that talks to Qloo and the LLM. It resolves favorites, builds the Taste Portrait, and generates wishes.
-3. **Backend** (Zunairah - this report): the database and API that store everything and enforce privacy. It sits between the frontend and the engine.
+3. **Backend** (this report): the database and API that store everything and enforce privacy. It sits between the frontend and the engine.
 
 The backend is the part that makes Genie a product and not a one-off demo. It holds people, portraits, wishes, the Wish Circle, and the Wish Makers. It also carries the privacy promises: minimal data, consent, deletion, and expiry.
 
@@ -190,10 +190,10 @@ Test people created during testing were deleted, and the 15 sample makers were k
 
 ## 6. Known limits (status on Oct 20)
 
-- The backend was deployed once on Render. The latest code still needs a redeploy (Part 7).
-- Free hosting sleeps when idle, so the first request after a pause is slow. An uptime monitor fixes this (`docs/deployment.md`, section 6).
+- The backend is deployed on Render and was redeployed with the latest code on Oct 20.
+- Free hosting sleeps when idle, so the first request after a pause is slow. An uptime monitor now checks `/health/db` every 5 minutes (set up Oct 20), as described in `docs/deployment.md`, section 6.
 - *Resolved on Oct 19:* all 15 sample makers now have Qloo data attached.
-- The consent note wording should be reviewed by Alizah (tone and copy). New wording is in Part 6 (L.8).
+- The consent note has new wording (Part 6, L.8). Alizah should read it once for tone.
 - *Removed, because they are now handled:* "Demo personas must be exempted from the 7-day expiry" (an admin pin endpoint exists) and "Expired data can remain up to an hour" (expired data is now unreadable at once, although the purge can lag).
 
 ---
@@ -203,9 +203,9 @@ Test people created during testing were deleted, and the 15 sample makers were k
 | Step | Status on Oct 20 |
 |---|---|
 | Push Day 3 code to GitHub | Done |
-| Deploy backend to Render | Deployed once. Redeploy with the latest code is pending |
-| Send Alizah the live API URL | Pending, after the redeploy |
-| Confirm the engine contract with Umaima | Done. Four lines to update (Part 6, L.5) |
+| Deploy backend to Render | Done. Redeployed with the latest code on Oct 20 |
+| Send Alizah the live API URL | Done. The frontend guide (`docs/frontend-integration.md`) was handed to Alizah |
+| Confirm the engine contract with Umaima | Done. The stale lines were updated on Oct 20 (Part 6, L.5) |
 | Matching (portrait tags against maker tags, stored in `wish_match`) | Done and re-tested on Oct 19 |
 | Enrich makers with Qloo IDs | Done on Oct 19 |
 | Wish Book data and PDF export | Done (a printable page, shared link, and compile endpoint) |
@@ -663,7 +663,7 @@ The stateless routes in `routers/agent_demo.py` (Umaima's) run the engine withou
 
 ### K.6 Issues found while reviewing the results (status on Oct 20)
 1. **The general AI side of the comparison was unavailable.** Fixed on Oct 19: the AI key is set and the comparison runs on both sides. The same key variables are needed on the host.
-2. **Matching ignored the artist a song was matched through.** When a song resolves through its artist, a maker who lists that artist should match. For makers with Qloo data this works through the shared artist entity. The current `matcher.py` does not yet use `matched_name`, so a maker who lists the artist only as plain text is not matched through it. Open (Part 7).
+2. **Matching ignored the artist a song was matched through.** When a song resolves through its artist, a maker who lists that artist should match. For makers with Qloo data this already worked through the shared artist entity. Fixed on Oct 20 for makers who list the artist only as plain text: `routers/matching.py` now selects `matched_name`, and `matcher.py` compares it with the maker's own tags (labelled `text`). Re-check pending (Part 6, check 29).
 3. **Broad tags can create false shared-taste matches.** Fixed on Oct 19 in a different way: a match that rests only on shared traits must now score at least 0.45 (Part 4, B.1).
 4. **Test people were left in the database** and must be deleted before the final judge test.
 
@@ -699,6 +699,8 @@ The backend calls the engine in `backend/engine/` through `POST /persons/{id}/ag
 - **New router `routers/demo.py`** with `GET /demo/personas` and `POST /demo/start`. Demo people are listed by position only. Their real ids live in the private variable `DEMO_PERSON_IDS` and are never returned. Starting a demo copies the pinned person's portrait, wishes, stored comparison, and agent log into a new person with the normal 7-day expiry, then runs matching against the database. It makes no Qloo or AI call, so a judge's first click is instant.
 - **Not copied by a demo start:** Wish Circle answers, Wish Book, share links, and requests. Those belong to the source person and stay private.
 - **`matcher.py`:** a match that rests only on broad shared taste traits must score at least 0.45 (`TRAITS_ONLY_MIN`). Weaker ones are dropped.
+- **`matcher.py` and `routers/matching.py` (Oct 20):** a maker who lists the artist or parent that an item was resolved through (`matched_name`) now matches, labelled `text`. Entity matches still score highest.
+- **`routers/circle.py` and `notices.py` (Oct 20):** the Wish Circle consent note and the privacy points now name Qloo and the third-party AI service, and say that free AI services may use prompts to improve their models. The frontend reads both from the API, so no screen change is needed.
 - **`guard.py`:** agent routes are limited to 10 per minute per address and the comparison to 5 per minute. They replace the earlier 40 per hour and 12 per hour. `/demo/start` counts with new people.
 - **`main.py`:** registers the demo router, and restores the engine cache snapshot at start-up (Umaima's change, controlled by `ENGINE_CACHE_RESTORE`).
 - **`mailer.py`:** a failed email now logs Brevo's reason. This also fixes a bug where a timeout raised a second error inside the error handler, because the handler read a response that did not exist.
@@ -713,7 +715,7 @@ The backend calls the engine in `backend/engine/` through `POST /persons/{id}/ag
 | 14 | In-person matching re-test, demo person in Hyderabad: the in-person haleem wish matched the sample home cook in Hyderabad | Pass |
 | 15 | In-person matching re-test, demo person in Seoul: the in-person musician wish matched the sample musician in Seoul, the only eligible maker | Pass |
 | 16 | Two clean demo people built (one in Hyderabad, one in Seoul), each with one agent run and one comparison, then pinned for five years | Pass |
-| 17 | `/demo/personas` lists both people by position with no real id. `/demo/start` for each returned a new person with a 7-day expiry and matches | Pass (Oct 19, after the minimum-score change). Reads of the copy's portrait, wishes, comparison, and log passed on an earlier copy with the same code. Re-check on a clean copy after the redeploy |
+| 17 | `/demo/personas` lists both people by position with no real id. `/demo/start` for each returned a new person with a 7-day expiry and matches | Pass (Oct 19, after the minimum-score change). Reads of the copy's portrait, wishes, comparison, and log passed on an earlier copy with the same code, and again on the deployed service (check 26) |
 | 18 | Minimum score for weak matches: each music wish now shows only its strong match (one maker). A place wish for a place with no local storyteller still shows type-only matches, labelled as such | Pass |
 | 19 | Email through Brevo: the application email, the admin notice, and the new-link email all arrived | Pass |
 | 20 | Secret check: `backend/.env` is not tracked and not in history. The only pattern hits are placeholders in `.env.example` | Pass |
@@ -722,6 +724,11 @@ The backend calls the engine in `backend/engine/` through `POST /persons/{id}/ag
 | 23 | After a link recovery, the old maker link stops working | Not run yet |
 | 24 | Rate limits after the change to per-minute limits | Not run yet |
 | 25 | Wish Book printed page showing script text as plain text, Save as PDF, and the revoked share link returning 404 | Not recorded yet. Part of the final judge test |
+| 26 | Deployed service: `/health/db`, `/demo/personas`, and `/demo/start` for both demo people returned 200. Reads of a copy's portrait, wishes, comparison, and agent log returned 200 | Pass (Oct 20) |
+| 27 | Email from the deployed service: the admin notice for a new Wish Maker application arrived | Pass (Oct 20) |
+| 28 | Engine cache snapshot restored on the deployed service at start-up | Pass (Oct 20) |
+| 29 | Matching through `matched_name` after the change to `matcher.py` and `routers/matching.py` | Applied Oct 20. Re-check pending |
+| 30 | Test data cleanup: test people and test Wish Makers deleted, the two pinned demo people kept | Done (Oct 20) |
 
 The in-person fix noted as untested in Part 4, section C is now confirmed by checks 14 and 15.
 
@@ -739,7 +746,7 @@ Umaima added a private snapshot of the engine's cache to the database (table `en
 
 Render needs: `ENGINE_CACHE_RESTORE=1`, `DATABASE_URL`, `QLOO_API_KEY`, `QLOO_API_URL`, `LLM_API_KEY` (the new key, because the old one ran out of quota), `LLM_MODEL`, `LLM_BASE_URL`, `LLM_TIMEOUT`, `DEMO_PERSON_IDS`, `ADMIN_TOKEN` (new), `BREVO_API_KEY`, `MAIL_FROM_EMAIL`, `MAIL_FROM_NAME`, `ADMIN_EMAIL`, `FRONTEND_URL`, `ALLOWED_ORIGINS`. `requirements.txt` needs `requests`, `python-dotenv`, `psycopg`, and `httpx`. After a deploy, the log should say the engine cache was restored. The full steps are in `docs/deployment.md`.
 
-### L.5 Engine contract: four lines to update
+### L.5 Engine contract: lines to update (applied by Zunairah on Oct 20)
 
 1. Section "Rules": change the worst-case note to "a dead Qloo now fails in about 14 seconds".
 2. Section 8: replace the "wiped on a Render redeploy" note with "a private snapshot in the database (table `engine_cache`) is restored at start-up when `ENGINE_CACHE_RESTORE=1`. Run the demo people once after each deploy."
@@ -768,27 +775,33 @@ Render needs: `ENGINE_CACHE_RESTORE=1`, `DATABASE_URL`, `QLOO_API_KEY`, `QLOO_AP
 - `docs/deployment.md`: database setup, Render settings and variables, first deploy, smoke test, uptime monitor, secrets.
 - `docs/testing.md`: engine tests, API checks by hand, the 10-person judge test, and the safety checks.
 
-**Consent note, new AI sentence** (find it with `git grep -n -i "consent" -- .` from the `backend` folder):
+**Consent note, new wording** (applied on Oct 20 in `routers/circle.py`, `CONSENT_NOTE`; the privacy points in `notices.py` were updated to match):
 
-Your answers are seen by the family and may appear in a keepsake the family can print or share. The names in them (songs, dishes, places, films) are checked against Qloo, a taste database, and an AI service helps read what you type. Free AI services may use what they receive to improve their models, so please leave out surnames, contact details and health details.
+Your answers will be seen by the family who invited you. They may appear in a keepsake book the family can print or share. The names in them (songs, dishes, places, films) are checked against Qloo, a taste database, and an AI service helps read what you type. Free AI services may use what they receive to improve their models, so please leave out surnames, contact details and health details. You can skip any question.
 
 ---
 
 # Part 7: What remains
 
-## M. Current list (Oct 20)
+## M. Current list (updated Oct 20)
 
-1. Commit the local changes, then `git pull` (Umaima changed `main.py`). Run `python engine_cache_store.py init` once against the database Render uses.
-2. Set the Render variables in L.4, redeploy, and check that the log says the engine cache was restored.
-3. Rotate the admin token and use a fresh one on Render.
-4. Set `DEMO_PERSON_IDS` on Render, and test `/demo/personas` and `/demo/start` for both demo people on the deployed service, including reads of the copy's portrait, wishes, comparison, and log.
-5. Set `FRONTEND_URL` and `ALLOWED_ORIGINS` to the real frontend address. In Brevo, check Security, then Authorized IPs.
-6. Add an uptime monitor on `/health/db` every 5 minutes (`docs/deployment.md`, section 6).
-7. Put the new consent wording (L.8) into the consent note, and the third-party AI wording into the Devpost privacy section.
-8. Update the four lines in `engine-contract.md` (L.5).
-9. Remove Qloo result names from the public docs going forward (`coverage-report.md` and `Engine.md`). Do not rewrite history.
-10. Decide whether `matcher.py` should also match through `matched_name` (K.6, item 2).
-11. Run the checks marked not run: the old maker link after recovery (23), the new rate limits (24), and the Wish Book print, Save as PDF, and revoked-link checks (25).
-12. Delete test persons and the test Wish Maker. Keep the two pinned demo people.
-13. Send Alizah the updated API list: `/demo/personas`, `/demo/start`, the maker pages `/maker/{token}` and `/maker/recover`, and the family page `/person/{id}`.
-14. Final judge test with 10 varied people (`docs/testing.md`), README setup steps, license check in the About panel, the Devpost description, and submission by Oct 29.
+**Done**
+
+1. Local changes committed and Umaima's Day 8 changes pulled. The engine cache table exists in the database Render uses, and the deployed log shows the cache restored.
+2. Render redeployed with the latest code and all variables.
+3. Both demo people are pinned. `/demo/personas` and `/demo/start` work on the deployed service.
+4. Email from the deployed service works.
+5. Uptime monitor on `/health/db`, every 5 minutes.
+6. Consent note and privacy points updated (L.1).
+7. Engine contract lines updated (L.5).
+8. `matcher.py` and `routers/matching.py` match through `matched_name`. Re-check pending (check 29).
+9. Test people and test Wish Makers deleted. The two pinned demo people remain.
+10. Frontend guide (`docs/frontend-integration.md`) handed to Alizah.
+
+**Still to do**
+
+1. Re-run `/demo/start` for both demo people after the `matched_name` change, and confirm the matches look the same.
+2. When the frontend is deployed: set `FRONTEND_URL` and `ALLOWED_ORIGINS` to its address on Render, and test from the live site.
+3. Paste the third-party AI wording (Part 4, section I, and K.9) into the Devpost privacy section.
+4. Run the checks marked not run: the old maker link after recovery (23), the new rate limits (24), and the Wish Book print, Save as PDF, and revoked-link checks (25).
+5. Final judge test with 10 varied people (`docs/testing.md`), README setup steps, license check in the About panel, the Devpost description, and submission by Oct 
