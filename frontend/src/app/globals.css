@@ -1,9 +1,24 @@
 @tailwind base;@tailwind components;@tailwind utilities;
-body{background:#faf6ee;color:#2c3a56;font-family:system-ui,-apple-system,"Segoe UI",sans-serif;font-size:18px;line-height:1.65}
-h1,h2,h3{font-family:"Cormorant Garamond","Iowan Old Style",Palatino,Georgia,serif;font-weight:500;line-height:1.12;letter-spacing:-.01em}
-a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid #566f5b;outline-offset:2px}
-@keyframes rise{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
-@keyframes breathe{0%,100%{transform:scale(1);opacity:.5}50%{transform:scale(1.12);opacity:.9}}
-.rise{animation:rise .8s cubic-bezier(.2,.7,.2,1) both}
-.breathe{animation:breathe 6s ease-in-out infinite}
-@media (prefers-reduced-motion:reduce){.rise,.breathe{animation:none}}
+:root{--ink:#10142f;--cream:#f5efe3;--gold:#f4c970;--violet:#75629c}
+*{box-sizing:border-box} html{background:var(--ink)}
+body{min-height:100vh;background:radial-gradient(circle at 50% -18%,#484070 0,#201b42 37%,#10142f 77%);color:var(--cream);font-family:system-ui,-apple-system,"Segoe UI",sans-serif;font-size:17px;line-height:1.65}
+body:before{content:"";pointer-events:none;position:fixed;inset:0;z-index:-1;opacity:.38;background-image:radial-gradient(circle at 12% 22%,#fff4bf 0 1px,transparent 1.6px),radial-gradient(circle at 28% 8%,#fff4bf 0 1px,transparent 1.6px),radial-gradient(circle at 72% 15%,#fff4bf 0 1.4px,transparent 2px),radial-gradient(circle at 87% 37%,#fff4bf 0 1px,transparent 1.6px),radial-gradient(circle at 52% 55%,#fff4bf 0 1px,transparent 1.6px),radial-gradient(circle at 8% 72%,#fff4bf 0 1px,transparent 1.6px);background-size:330px 330px,420px 420px,510px 510px,380px 380px,470px 470px,390px 390px}
+h1,h2,h3{font-family:"Cormorant Garamond","Iowan Old Style",Palatino,Georgia,serif;font-weight:500;line-height:1.02;letter-spacing:-.025em}
+a{transition:color .2s ease,background-color .2s ease,border-color .2s ease} a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:3px solid var(--gold);outline-offset:3px}
+input,textarea,select{color:var(--ink)} ::selection{background:#f4c970;color:#10142f}
+.text-navy,.text-navy\/75,.text-navy\/70,.text-navy\/60,.text-navy\/80{color:rgba(245,239,227,.76)}.text-navy\/60{color:rgba(245,239,227,.58)}.text-sagedeep{color:#dbc9ff}.bg-paper{background-color:rgba(255,251,244,.08)}.bg-white{background-color:#fffaf0}
+@keyframes rise{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}} @keyframes breathe{0%,100%{transform:scale(1);opacity:.5}50%{transform:scale(1.12);opacity:.9}} @keyframes twinkle{50%{opacity:.25;transform:scale(.75)}}
+.rise{animation:rise .8s cubic-bezier(.2,.7,.2,1) both}.breathe{animation:breathe 6s ease-in-out infinite}.twinkle{animation:twinkle 3.4s ease-in-out infinite}
+.glass{background:linear-gradient(135deg,rgba(255,255,255,.15),rgba(255,255,255,.05));border:1px solid rgba(255,245,216,.2);box-shadow:0 18px 60px rgba(2,3,20,.2);backdrop-filter:blur(12px)}
+.gold-rule{height:1px;background:linear-gradient(90deg,transparent,rgba(244,201,112,.85),transparent)}
+@media print{body{background:#fff;color:#201b31;font-size:12pt}body:before,header,footer,.noprint{display:none!important}.print-paper{background:#fff!important;border:0!important;box-shadow:none!important;color:#201b31!important}main{max-width:none!important;padding:0!important}}
+@media (prefers-reduced-motion:reduce){.rise,.breathe,.twinkle{animation:none}}
+/* ---- Phase 2: "Show what Qloo did" layer. Applied only by components that have established real Qloo provenance. ---- */
+.qloo-glow{box-shadow:0 0 0 1px rgba(125,211,252,.45),0 0 26px rgba(125,211,252,.2);transition:box-shadow .4s ease}
+.qloo-badge{display:inline-flex;align-items:center;gap:.3rem;border-radius:999px;border:1px solid rgba(125,211,252,.5);background:rgba(125,211,252,.14);padding:.05rem .55rem;font-family:system-ui,sans-serif;font-size:.7rem;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:#bde8fb;vertical-align:middle}
+.qloo-tag{background:rgba(125,211,252,.18);color:#d9f2fd;box-shadow:inset 0 0 0 1px rgba(125,211,252,.4)}
+@keyframes drift-slow{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
+.drift-slow{animation:drift-slow 9s ease-in-out infinite}
+.warm-glow{background:radial-gradient(120% 90% at 20% 0%,rgba(244,201,112,.18),transparent 60%),linear-gradient(135deg,rgba(255,255,255,.14),rgba(255,255,255,.05));border:1px solid rgba(244,201,112,.4);box-shadow:0 0 60px rgba(244,201,112,.1),0 18px 60px rgba(2,3,20,.25)}
+.muted-card{background:rgba(255,255,255,.04);border:1px solid rgba(245,239,227,.14)}
+@media (prefers-reduced-motion:reduce){.drift-slow{animation:none}.qloo-glow{transition:none}}

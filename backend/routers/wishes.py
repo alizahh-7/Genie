@@ -21,21 +21,35 @@ class WishIn(BaseModel):
     basis: Optional[str] = Field(default=None, max_length=20)
     why: Optional[str] = Field(default=None, max_length=600)
     affinity: Optional[float] = Field(default=None, ge=0, le=1)
+    # The item a discovery wish points at. The engine may send it. If it does not, it is read
+    # from the "why" sentence, which always has the form "... with <item> (match score ...)".
+    discovered: Optional[str] = Field(default=None, max_length=200)
+
+
+def discovered_from_why(why) -> Optional[str]:
+    if not why or " with " not in why or " (match score" not in why:
+        return None
+    head = why.split(" (match score")[0]
+    name = head.rsplit(" with ", 1)[-1].strip()
+    return name[:200] or None
 
 
 def insert_wish(conn, person_id, body: WishIn):
+    discovered = body.discovered
+    if not discovered and body.kind == "discovery":
+        discovered = discovered_from_why(body.why)
     return conn.execute(
         """
         insert into wish
           (person_id, title, description, mode, source_items,
-           kind, maker_type, tags, basis, why, affinity, created_at)
-        values (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, clock_timestamp())
+           kind, maker_type, tags, basis, why, affinity, discovered, created_at)
+        values (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, clock_timestamp())
         returning *
         """,
         (
             person_id, body.title.strip(), body.description, body.mode,
             Jsonb(body.source_items), body.kind, body.maker_type, Jsonb(body.tags),
-            body.basis, body.why, body.affinity,
+            body.basis, body.why, body.affinity, discovered,
         ),
     ).fetchone()
 

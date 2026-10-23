@@ -153,12 +153,15 @@ def build_person_portrait(person_id: UUID, body: BuildIn):
     engine = load_engine()
     person, inputs = read_build_inputs(person_id, body)
     result = run_engine(engine.build_portrait, person, inputs) or {}
-    saved = store_portrait(person_id, result.get("items"), result.get("qloo_log") or [])
-    return {
-        "saved": saved,
-        "items": result.get("items") or [],
-        "qloo_log": result.get("qloo_log") or [],
-    }
+    items = result.get("items") or []
+    qloo_log = result.get("qloo_log") or []
+    saved = store_portrait(person_id, items, qloo_log)
+    in_qloo = sum(1 for i in items if i.get("qloo_entity_id"))
+    summary = (
+        f"Gathered {len(items)} favourites. {in_qloo} found in Qloo, "
+        f"{len(items) - in_qloo} kept and labelled."
+    )
+    return {"saved": saved, "items": items, "qloo_log": qloo_log, "summary": summary}
 
 
 @router.post("/{person_id}/wishes/generate")
@@ -168,12 +171,14 @@ def generate_person_wishes(person_id: UUID):
     if not rows:
         raise HTTPException(409, "Build the Taste Portrait before generating wishes")
     result = run_engine(engine.generate_wishes, rows, person, use_llm=polish_enabled()) or {}
-    saved = store_wishes(person_id, result.get("wishes"), result.get("qloo_log") or [])
-    return {
-        "wishes": saved,
-        "follow_up": result.get("follow_up"),
-        "qloo_log": result.get("qloo_log") or [],
-    }
+    qloo_log = result.get("qloo_log") or []
+    saved = store_wishes(person_id, result.get("wishes"), qloo_log)
+    discovery = sum(1 for w in saved if w.get("kind") == "discovery")
+    summary = (
+        f"Wrote {len(saved)} wishes. {discovery} came from Qloo's taste graph and is labelled a guess."
+        if saved else "No wishes were written this time."
+    )
+    return {"wishes": saved, "follow_up": result.get("follow_up"), "qloo_log": qloo_log, "summary": summary}
 
 
 @router.post("/{person_id}/agent/run")
