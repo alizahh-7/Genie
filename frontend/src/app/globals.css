@@ -13,3 +13,12 @@ input,textarea,select{color:var(--ink)} ::selection{background:#f4c970;color:#10
 .gold-rule{height:1px;background:linear-gradient(90deg,transparent,rgba(244,201,112,.85),transparent)}
 @media print{body{background:#fff;color:#201b31;font-size:12pt}body:before,header,footer,.noprint{display:none!important}.print-paper{background:#fff!important;border:0!important;box-shadow:none!important;color:#201b31!important}main{max-width:none!important;padding:0!important}}
 @media (prefers-reduced-motion:reduce){.rise,.breathe,.twinkle{animation:none}}
+/* ---- Phase 2: "Show what Qloo did" layer. Applied only by components that have established real Qloo provenance. ---- */
+.qloo-glow{box-shadow:0 0 0 1px rgba(125,211,252,.45),0 0 26px rgba(125,211,252,.2);transition:box-shadow .4s ease}
+.qloo-badge{display:inline-flex;align-items:center;gap:.3rem;border-radius:999px;border:1px solid rgba(125,211,252,.5);background:rgba(125,211,252,.14);padding:.05rem .55rem;font-family:system-ui,sans-serif;font-size:.7rem;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:#bde8fb;vertical-align:middle}
+.qloo-tag{background:rgba(125,211,252,.18);color:#d9f2fd;box-shadow:inset 0 0 0 1px rgba(125,211,252,.4)}
+@keyframes drift-slow{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
+.drift-slow{animation:drift-slow 9s ease-in-out infinite}
+.warm-glow{background:radial-gradient(120% 90% at 20% 0%,rgba(244,201,112,.18),transparent 60%),linear-gradient(135deg,rgba(255,255,255,.14),rgba(255,255,255,.05));border:1px solid rgba(244,201,112,.4);box-shadow:0 0 60px rgba(244,201,112,.1),0 18px 60px rgba(2,3,20,.25)}
+.muted-card{background:rgba(255,255,255,.04);border:1px solid rgba(245,239,227,.14)}
+@media (prefers-reduced-motion:reduce){.drift-slow{animation:none}.qloo-glow{transition:none}}

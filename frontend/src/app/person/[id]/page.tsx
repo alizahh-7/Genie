@@ -1,9 +1,11 @@
 "use client";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Shell, Card, Btn, Gathering, ErrorBox, Disclosure } from "@/components/ui";
 import FavouriteEditor from "@/components/FavouriteEditor";
 import { PortraitCard, WishCard, WhatGenieDid, QlooCalls } from "@/components/story";
+import { QlooPanel } from "@/components/QlooLayer";
+import { deriveCounters, qlooTagNames } from "@/lib/qloo";
 import { agentLog, agentRun, deletePerson, getPerson, getPortrait, getWishes } from "@/lib/api";
 import { useTask } from "@/lib/useTask";
 import { PERSON_EXPIRED_CODE } from "@/lib/errors";
@@ -24,6 +26,8 @@ export default function PersonPage() {
     const row = [...l].reverse().find(x => x.step === "agent"); setLog(row ? row.log : null);
   }, [id]);
   const load = useCallback(() => t.run(fetchAll), [t.run, fetchAll]);
+  const counters = useMemo(() => deriveCounters({ log, items, wishes }), [log, items, wishes]);
+  const known = useMemo(() => qlooTagNames(items), [items]);
   useEffect(() => { load(); }, [load]);
   const openEditor = () => { setFavs(items.filter(i => i.source_label === "told" || i.source_label === "reacted").map(i => ({ domain: i.domain, name: i.name }))); setEditing(true); };
   const rerun = () => t.run(async () => { await agentRun(id, favs); await fetchAll(); setEditing(false); });
@@ -53,13 +57,14 @@ export default function PersonPage() {
       ].map(([label,path]) => <Btn key={path} quiet href={`/person/${id}/${path}`}>{label}</Btn>)}</nav>
       <section aria-labelledby="portrait">
         <h2 id="portrait" className="mb-5 text-4xl">Taste Portrait</h2>
+        <QlooPanel counters={counters} />
         {items.length === 0 ? <Card><p>No portrait yet. Add a song, a dish or a place they loved, and Genie will begin.</p></Card>
           : <div className="grid gap-5 sm:grid-cols-2">{items.map((it, i) => <PortraitCard key={it.id} item={it} i={i} />)}</div>}
       </section>
       <section aria-labelledby="wishes" className="mt-14">
         <h2 id="wishes" className="mb-5 text-4xl">Wishes</h2>
         {wishes.length === 0 ? <Card><p>Wishes appear once there is a portrait to learn from.</p></Card>
-          : <div className="grid gap-5">{wishes.map((w, i) => <WishCard key={w.id} wish={w} i={i} />)}</div>}
+          : <div className="grid gap-5">{wishes.map((w, i) => <WishCard key={w.id} wish={w} i={i} known={known} />)}</div>}
       </section>
       <section className="mt-14">
         <Disclosure title="What Genie did" hint="The steps, in order"><WhatGenieDid log={log} /></Disclosure>
