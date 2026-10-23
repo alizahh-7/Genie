@@ -1,0 +1,518 @@
+# Genie — Detailed Frontend Engineering Report
+
+**Project:** Genie — A Qloo-Powered Agentic Wish Discovery Platform  
+**Frontend Developer:** Syeda Alizah  
+**Repository:** [alizahh-7/Genie](https://github.com/alizahh-7/Genie)  
+**Primary Directory:** `/frontend`  
+**Documentation Date:** October 2026  
+**Status:** Phase 1 implemented and pushed; Phase 2 implemented and locally code-tested; Phase 3 planned/in coordination
+
+---
+
+## 1. Frontend Overview
+
+Genie's frontend is designed to turn an agentic AI workflow into an accessible, emotionally meaningful experience.
+
+Rather than presenting raw AI responses, the interface helps families understand how Genie moves from a person's memories and preferences to a taste portrait, meaningful wishes, and potential Wish Makers.
+
+The frontend has three primary responsibilities:
+
+1. Provide a clear and compassionate experience for families.
+2. Make Qloo's contribution visible, traceable, and understandable.
+3. Connect the backend's person, portrait, wish-generation, comparison, and maker-matching capabilities into one coherent journey.
+
+The interface deliberately distinguishes between information supplied by family members, Qloo-supported discoveries, AI-generated inferences, and unknown-source information.
+
+Genie is not a medical service. Its interface preserves this distinction and directs care-related questions to the appropriate care team.
+
+---
+
+## 2. Technology Stack
+
+| Layer | Technology |
+|---|---|
+| Framework | Next.js 14 |
+| UI | React |
+| Language | TypeScript |
+| Styling | Tailwind CSS and custom CSS |
+| Routing | Next.js App Router |
+| Backend communication | HTTP API client |
+| Testing | Vitest |
+| Build | Next.js production build |
+| Version control | Git and GitHub |
+| Backend deployment | Render |
+
+The frontend uses the environment variable:
+
+`NEXT_PUBLIC_API_URL`
+
+Current development configuration:
+
+`https://genie-ld8p.onrender.com`
+
+The frontend and backend are maintained separately, allowing interface improvements without changing the underlying engine or API implementation.
+
+---
+
+## 3. Frontend Architecture
+
+The application follows the Next.js App Router structure.
+
+### Main directories
+
+| Directory | Responsibility |
+|---|---|
+| `src/app` | Pages, layouts, routing and page-level integration |
+| `src/components` | Reusable interface components |
+| `src/lib` | API communication, TypeScript types, utilities and data transformation |
+| `src/lib/__tests__` | Automated tests |
+| `public` | Static assets, where applicable |
+
+### Key application routes
+
+| Route | Purpose |
+|---|---|
+| `/` | Landing page |
+| `/demo` | Guided fictional-person demonstration |
+| `/demo?view=all` | Full demo dashboard |
+| `/start` | Start a new person's journey |
+| `/person/[id]` | Person overview and taste portrait |
+| `/person/[id]/compare` | General AI vs Genie comparison |
+| `/person/[id]/wishes` | Generated wishes and maker discovery |
+| `/person/[id]/wish-book` | Personalised Wish Book |
+| `/person/[id]/bedside-kit` | Bedside recommendations |
+| `/person/[id]/reaction` | Reaction and feedback interface |
+| `/person/[id]/circle` | Family circle |
+| `/book/[token]` | Shared Wish Book |
+| `/makers/apply` | Wish Maker application |
+| `/maker/[token]` | Maker-specific access |
+| `/maker/recover` | Maker recovery |
+
+Dynamic person routes use backend-provided identifiers rather than hardcoded demo IDs.
+
+---
+
+## 4. Design Philosophy
+
+Genie's interface is intentionally different from a conventional AI dashboard.
+
+The visual direction prioritises:
+
+- Warm, emotionally appropriate storytelling.
+- Elegant serif typography and readable body text.
+- A blended nighttime atmosphere with subtle animation.
+- Soft lighting, gradients and restrained visual emphasis.
+- Clear source attribution.
+- Progressive disclosure of technical evidence.
+- Responsive layouts.
+- Accessible interaction and reduced-motion support.
+
+The landing page retains Genie's central message:
+
+**Everyone deserves to be known before they go.**
+
+The frontend aims to make the experience understandable to both families and technical hackathon judges.
+
+---
+
+## 5. Phase 1 — Reliability and Data Presentation
+
+Phase 1 focused on correcting existing presentation problems while preserving backend functionality.
+
+### 5.1 Bedside Kit
+
+Updated playlist rendering to display the actual track name and label.
+
+Removed misleading explanations caused by rendering raw `basis` values as natural-language reasons.
+
+The word *because* is restricted to sections where the backend supplies an appropriate explanation.
+
+### 5.2 Compare Data Cleaning
+
+Implemented data-cleaning helpers to prevent empty or null backend fields from producing unnecessary placeholders.
+
+Actual comparison data remains visible.
+
+### 5.3 Endpoint-Specific Error Handling
+
+Different API failures now produce appropriate messages:
+
+- Missing person: expired or deleted.
+- Missing comparison: comparison not generated yet.
+- Missing Wish Book: Wish Book not compiled yet.
+
+This prevents an unrelated resource's 404 response from incorrectly implying that a person has expired.
+
+### 5.4 Wish Book Source Separation
+
+Family-told information and inferred information are displayed separately.
+
+The interface uses the heading:
+
+**Maybe, from their era and region**
+
+for appropriate inferred content.
+
+Visible tags are limited to five per item, prioritising meaningful descriptors where possible.
+
+### 5.5 Things We Learned
+
+Filtered vague mood-only filler while retaining meaningful observations about genres, places and other concrete preferences.
+
+### 5.6 Qloo Log Readability
+
+Technical Qloo activity is translated into readable descriptions.
+
+A raw-log toggle preserves access to the underlying entries for technical inspection.
+
+### 5.7 Wish Maker Cards
+
+Improved maker labels, sample-data identification and match-basis explanations.
+
+Qloo-based, text-based and type-based matching are distinguished rather than presented as equivalent evidence.
+
+### Phase 1 verification
+
+- TypeScript: PASS
+- Unit tests: 36/36 PASS
+- Production build: PASS
+- Git commit: `a9d2bc9`
+
+---
+
+## 6. Phase 2 — Judge-Facing Experience
+
+Phase 2 transforms the existing frontend into a clearer demonstration of Genie's agentic and Qloo-powered capabilities.
+
+### 6.1 Compare Hero
+
+The comparison page uses the headline:
+
+**The same facts. One side knows why.**
+
+Two balanced columns present:
+
+**A general AI**
+
+A neutral presentation of the generic AI's actual output.
+
+**Genie, using Qloo**
+
+A warmer presentation of Genie's actual wishes, available taste evidence, source labels and discovery indicators.
+
+An evidence scoreboard displays metrics from the backend when available.
+
+Missing metrics are omitted rather than replaced with invented numbers.
+
+The page also preserves the backend's comparison note and handles unavailable generic-AI results.
+
+### 6.2 Show What Qloo Did
+
+A reusable toggle allows users to highlight actual Qloo-supported content.
+
+The explanatory legend covers four roles:
+
+| Role | Meaning |
+|---|---|
+| Understand | Resolving and expanding favourites |
+| Discover | Finding related tastes and possibilities |
+| Match | Connecting wishes with suitable makers |
+| Learn | Using reactions to refresh understanding |
+
+Highlighting is provenance-dependent.
+
+Family-provided information, unknown-source items and non-Qloo maker matches must not be presented as confirmed Qloo evidence.
+
+Turning the toggle off removes additional emphasis without hiding the underlying content.
+
+### 6.3 Guided Meet Nani Journey
+
+The demo experience was redesigned as an eight-step journey:
+
+1. Meet Nani.
+2. Watch what Genie did.
+3. Explore her portrait.
+4. Discover meaningful wishes.
+5. Compare General AI with Genie.
+6. Explore Wish Makers.
+7. Preview the Wish Book.
+8. Start a new person's journey.
+
+The experience includes Next and Back controls, progress indication and a secondary See Everything option.
+
+The demo person ID is retained through navigation rather than creating another person on every step.
+
+The agent-log portion is explicitly presented as a replay of saved backend activity, not simulated live processing.
+
+### 6.4 Landing Page Improvements
+
+The landing page now uses a concrete example to explain Genie's purpose.
+
+Illustrated fictional-person cards introduce Nani and Sana.
+
+The existing animated nighttime background and primary calls to action are preserved.
+
+### 6.5 Portrait Qloo Counters
+
+The person experience includes a compact evidence strip based on available backend data.
+
+Potential metrics include:
+
+- Actual Qloo lookups.
+- Supported taste links.
+- Identified discoveries.
+
+The implementation avoids combining overlapping lookup sources in a way that double-counts the same activity.
+
+Unavailable metrics are omitted rather than hardcoded.
+
+### Phase 2 verification
+
+Locally executed checks:
+
+| Check | Result |
+|---|---|
+| TypeScript | PASS |
+| Vitest | 65/65 PASS |
+| Production build | PASS |
+| Live `/demo/personas` request | PASS |
+| Full live-browser journey | Pending manual verification |
+
+The live backend returned both fictional demo personas:
+
+- Nani — Hyderabad, born 1948.
+- Sana — Seoul, born 1992.
+
+Mock-browser checks reported by the implementation assistant: 61/61. These are separate from live Render integration verification.
+
+---
+
+## 7. Backend Integration
+
+The frontend communicates with the backend through the central API layer.
+
+Important integrations include:
+
+- Demo-person discovery.
+- Person creation and retrieval.
+- Portrait building.
+- Wish generation.
+- General AI comparison.
+- Saved agent activity.
+- Wish Book retrieval.
+- Wish Maker discovery and matching.
+- Reaction and feedback workflows.
+
+### Integration principles
+
+1. The backend remains the source of truth.
+2. UI components should not fabricate API responses.
+3. Backend identifiers must be reused throughout a person's journey.
+4. Missing optional fields require defensive rendering.
+5. API errors should be interpreted in the context of the endpoint.
+6. Repeated or overlapping evidence should not inflate displayed metrics.
+7. Non-idempotent operations should not be silently repeated.
+
+The frontend does not directly replace the backend's recommendation, matching or Qloo logic.
+
+---
+
+## 8. Qloo Evidence and Transparency
+
+A central frontend objective is making Genie's use of Qloo inspectable.
+
+The interface separates:
+
+**Family-provided information:** Information explicitly supplied by the family.
+
+**Qloo-supported information:** Items with backend evidence supporting a Qloo origin.
+
+**AI-generated inference:** Information inferred rather than confirmed.
+
+**Unknown-source information:** Data whose provenance cannot be established.
+
+Visual badges, highlighting and explanatory copy are applied according to the available evidence.
+
+The raw Qloo activity log remains accessible where supported.
+
+The interface does not treat every recommendation or maker match as Qloo-derived.
+
+This is particularly important when demonstrating the project to judges: the visible distinction should reflect real system behaviour rather than decorative branding.
+
+---
+
+## 9. Phase 3 — Completing the Emotional Journey
+
+Phase 3 is planned around four features.
+
+### 9.1 Wish Book Redesign
+
+A keepsake-style presentation featuring:
+
+- Personalised cover.
+- Structured family memories.
+- Separate guesses and discoveries.
+- Source attribution.
+- Print-friendly styling.
+- Shared Wish Book compatibility.
+
+Structured family-memory fields require backend confirmation.
+
+### 9.2 Wish-to-Maker Timeline
+
+A timeline displaying:
+
+**Suggested → Asked → Accepted → Done**
+
+Completed stages must reflect actual backend statuses.
+
+Declined, cancelled, expired and other supported states should be represented honestly.
+
+### 9.3 Watch Genie Learn
+
+A transparent workflow using real sequential backend operations:
+
+1. Create the person.
+2. Build their portrait.
+3. Generate wishes.
+
+The frontend will display real progress and response-derived summaries.
+
+This is separate from Phase 2's saved agent-log replay.
+
+### 9.4 Taste Map
+
+A visual representation of:
+
+**Person → Favourites → Strongest Taste Tags → Discovered Item**
+
+Only available, supported relationships should appear.
+
+The map will integrate with the existing Qloo transparency toggle.
+
+### Backend coordination
+
+The following require confirmation from the backend developer:
+
+- Structured family-memory response fields.
+- Exact Wish Maker status values and available timestamps.
+- Request and response contracts for sequential person/portrait/wish operations.
+- Reliable fields for favourites, taste tags, discoveries and provenance.
+
+Phase 3 functionality should not be marked fully integrated until the relevant contracts are confirmed and tested.
+
+---
+
+## 10. Testing Strategy
+
+Frontend verification uses several layers.
+
+### Static verification
+
+`npm run typecheck`
+
+Checks TypeScript compatibility.
+
+### Unit testing
+
+`npm test`
+
+Runs the Vitest suite, including utility and component tests.
+
+### Production compilation
+
+`npm run build`
+
+Confirms that the application can compile into a production build.
+
+### Browser verification
+
+Manual or automated browser checks validate navigation, interaction, layout and rendered content.
+
+### Live integration verification
+
+The frontend must also be tested against the deployed Render backend.
+
+A passing mock-backed test does not establish that live API integration is working.
+
+### Current verified baseline
+
+The Phase 2 source passed:
+
+- TypeScript typecheck.
+- 65 automated tests.
+- Next.js production build.
+
+---
+
+## 11. Development and Verification Commands
+
+Run from the frontend directory:
+
+```powershell
+cd C:\Users\dell\Genie\frontend
+
+npm install
+npm run typecheck
+npm test
+npm run build
+```
+
+After the build finishes, start the development server:
+
+```powershell
+npm run dev
+```
+
+Open the localhost URL printed by Next.js.
+
+To check the deployed demo endpoint:
+
+```powershell
+Invoke-RestMethod "https://genie-ld8p.onrender.com/demo/personas" |
+ConvertTo-Json -Depth 10
+```
+
+The repository's frontend smoke script may also be used while the local frontend server is running:
+
+```powershell
+.\scripts\smoke.ps1
+```
+
+---
+
+## 12. Current Limitations
+
+- Some optional backend response shapes require confirmation.
+- Live-browser testing is required after each frontend integration change.
+- Qloo provenance highlighting depends on available backend evidence.
+- Structured family memories and complete maker timeline status support require backend coordination.
+- Phase 3's sequential workflow must be verified against the real API before being described as fully functional.
+
+These limitations are handled through honest empty states, defensive rendering and explicit source labels rather than fabricated production data.
+
+---
+
+## 13. Frontend Contributions Summary
+
+The frontend work covers more than visual styling.
+
+Its engineering contributions include:
+
+- Next.js application structure and page integration.
+- Reusable React components.
+- TypeScript data modelling.
+- API integration and error handling.
+- Backend response transformation.
+- Provenance-aware Qloo presentation.
+- Evidence-driven comparison design.
+- Guided agentic storytelling.
+- Accessible interaction.
+- Responsive visual design.
+- Automated testing.
+- Production-build verification.
+- Frontend technical documentation.
+
+The overall goal is to make Genie's technical capabilities understandable without sacrificing the emotional significance of the experience.
+
+**Genie does not simply present a list of wishes. Its frontend helps people see how those wishes connect to a person's story, tastes and the people who may help bring them to life.**
