@@ -863,9 +863,9 @@ Applicant confirmation, an alert to the admin, the approval email with the priva
 | 38 | Application email, admin alert, and approval email with the private link all arrived | Pass |
 | 39 | Adding a member with an email: the link was emailed and `email_sent` was true | Pass |
 | 40 | Hard delete of a story removes the person and linked rows. The audit log shows only the case key | Run `select count(*) from person` for the deleted id before ticking this |
-| 41 | A reference label with a long number is refused (422) | Not run yet |
-| 42 | Revoking a member's link, then opening it, returns 404 | Not run yet |
-| 43 | Status change and the audit log read by a coordinator | Not run yet |
+| 41 | A reference label with a long number is refused (422) | pass |
+| 42 | Revoking a member's link, then opening it, returns 404 | pass |
+| 43 | Status change and the audit log read by a coordinator | pass |
 
 ## P. Decisions
 
@@ -897,7 +897,7 @@ Applicant confirmation, an alert to the admin, the approval email with the priva
 
 ## S. What remains
 1. Set `FRONTEND_URL` and `ALLOWED_ORIGINS` on Render to the deployed frontend, and test the approval email link from the live site.
-2. Tests 40 to 43 above.
+2. Verify Test 40 by checking the database confirms the deleted person's row is gone. Tests 41–43 have passed their demonstrated checks.
 3. Add a per-IP limit for `/org-portal/apply` in `guard.py`.
 4. Update `docs/privacy.md` with the organisation layer (what is stored, who sees it, retention, deletion, roles, consent record). Update `docs/deployment.md` with the new migrations (007, 008, 009) and `ORG_CASE_TTL_DAYS`.
 5. Final judge test, README, Devpost, submission.
