@@ -800,8 +800,113 @@ Your answers will be seen by the family who invited you. They may appear in a ke
 
 **Still to do**
 
-1. Re-run `/demo/start` for both demo people after the `matched_name` change, and confirm the matches look the same.
-2. When the frontend is deployed: set `FRONTEND_URL` and `ALLOWED_ORIGINS` to its address on Render, and test from the live site.
-3. Paste the third-party AI wording (Part 4, section I, and K.9) into the Devpost privacy section.
-4. Run the checks marked not run: the old maker link after recovery (23), the new rate limits (24), and the Wish Book print, Save as PDF, and revoked-link checks (25).
-5. Final judge test with 10 varied people (`docs/testing.md`), README setup steps, license check in the About panel, the Devpost description, and submission by Oct 
+1. When the frontend is deployed: set `FRONTEND_URL` and `ALLOWED_ORIGINS` to its address on Render, and test from the live site.
+2. Paste the third-party AI wording (Part 4, section I, and K.9) into the Devpost privacy section.
+3. Run the checks marked not run: the old maker link after recovery (23), the new rate limits (24), and the Wish Book print, Save as PDF, and revoked-link checks (25).
+4. Final judge test with 10 varied people (`docs/testing.md`), README setup steps, license check in the About panel, the Devpost description, and submission by Oct 
+
+---
+# Part 8: Phase Discovered wishes support and the organisation layer (Oct 22 and 23)
+
+## N. What was added
+
+### N.1 Discovered wishes, Wish Book improvements, and summaries for the frontend (migration `007_discovered.sql`)
+* **`wish.discovered`** is a new column holding the item a discovery wish points at. The wish endpoints accept it. If the engine does not send it, the backend reads it from the wish's "why" sentence. Existing demo wishes were back-filled.
+* **`top_tags`** is added to `GET /persons/{id}/portrait`. It holds the few tag names worth drawing (what something is first, then where or how it sits), at most 5, so mood words never appear in a keepsake. The same rule limits tags in the Wish Book.
+* **Wish Book rewrite.** Tags are capped at 5 per item. Guesses (`likely`, `ai-only`) sit in a separate section, "Maybe, from their era and region". "What we learned" is written as sentences from told or reacted items only. Family memories print in question order, and each appears once. Books compiled before the change still print correctly.
+* **Demo memories.** Both pinned demo people now carry fictional family memories (stored as a Wish Circle invite plus responses, with consent recorded). `POST /demo/start` copies them, along with `discovered`, into each new demo person.
+* **Summaries.** `portrait/build` and `wishes/generate` now return a plain-language `summary` for the "watch Genie learn" screen.
+* **Fix to the import path** for the shared headline-tags helper (it lives in `routers/`).
+
+### N.2 Organisation layer (migrations `008_organisations.sql`, `009_org_product.sql`)
+A way for hospices, hospitals, care homes and charities to coordinate Genie stories for the people in their care. It stores no clinical information.
+
+| Table | Purpose |
+|---|---|
+| `organisation` | The organisation (kind, city, country, a sample flag) |
+| `org_member` | A member with a role (coordinator, volunteer, viewer). Only the hash of their private link is stored |
+| `org_case` | A story an organisation opened. It holds an opaque case key, the organisation's own reference label, the status, and a record of who agreed and when |
+| `org_audit` | Who did what and when, readable by coordinators |
+| `org_application` | An organisation's application, waiting for admin review |
+
+**How it works**
+1. An organisation applies on a public form (`POST /org-portal/apply`). Nothing is created until an admin approves.
+2. The admin approves it (`/admin/org-applications/{id}/approve`). That creates the organisation and its first coordinator, and **emails the private link** to the contact. The link also appears once in the admin response as a backup.
+3. The coordinator adds colleagues or read-only viewers. Each gets their own private link, emailed if an address was given.
+4. Coordinators and volunteers open a story for a person in their care. They must confirm that the person, or their family or guardian, agreed. That confirmation and its date are stored with the story.
+5. The dashboard shows each story, the stage of each wish (not asked, requested, accepted, done, declined), the next step, and how long the story is kept.
+
+**Safeguards**
+* **Roles.** Viewers are read-only. Volunteers can open and extend stories. Coordinators can also change status, delete stories, manage members and read the audit log.
+* **Opaque case keys.** Portal URLs use a case key, never the person's id. Viewers never receive the person's id, so they cannot reach the family-side API.
+* **No medical record numbers.** A reference label containing a long number is refused.
+* **Consent is required** to open a story and is recorded.
+* **Longer retention for care teams:** 90 days by default (`ORG_CASE_TTL_DAYS`), extendable. The person's own expiry still applies.
+* **Hard delete.** Deleting a story removes the person and everything linked to them by cascade, the same way the family's "Delete everything" does. The audit log keeps only the opaque case key.
+* **Private links.** Only a hash is stored. A link can be revoked at any time. Applications are limited to 3 per email per day.
+* **Honest labelling.** The sample organisation is marked as sample data.
+
+### N.3 Email for organisations (`org_mail.py`, through Brevo)
+Applicant confirmation, an alert to the admin, the approval email with the private link, and member invitations. Emails are sent after the database work is saved and never raise errors, so a failed email never breaks an application or an approval. The responses report `email_sent` so the admin knows whether to send the link by hand.
+
+## O. Test evidence
+
+| # | Check | Result |
+|---|---|---|
+| 31 | `/demo/start` for both demo people returns a new person with matches. The copy carries the family memories | Pass |
+| 32 | Compiled Wish Book: tags capped at 5, guesses in their own section, family memories in question order, no duplicated memory line | Pass |
+| 33 | Organisation created by admin. Both demo stories attached and extended to 90 days | Pass |
+| 34 | Dashboard shows both stories with wish counts and next step | Pass |
+| 35 | A viewer link creating a story returns 403 "Your role cannot do this" | Pass |
+| 36 | A viewer reading a story: `can_edit` is false and the response contains no person id | Pass |
+| 37 | Application submitted, listed under admin pending, approved | Pass |
+| 38 | Application email, admin alert, and approval email with the private link all arrived | Pass |
+| 39 | Adding a member with an email: the link was emailed and `email_sent` was true | Pass |
+| 40 | Hard delete of a story removes the person and linked rows. The audit log shows only the case key | Run `select count(*) from person` for the deleted id before ticking this |
+| 41 | A reference label with a long number is refused (422) | Not run yet |
+| 42 | Revoking a member's link, then opening it, returns 404 | Not run yet |
+| 43 | Status change and the audit log read by a coordinator | Not run yet |
+
+## P. Decisions
+
+| Decision | Reason |
+|---|---|
+| Organisations apply and an admin approves | Same trust model as Wish Makers: nobody gets access to stories without a human decision |
+| Roles with a read-only viewer | Care teams include people who should look but not change anything |
+| Case keys instead of person ids in the portal | The person's id opens the family-side API. Staff who can act receive it, viewers never do |
+| Consent confirmation stored with each story | A record that someone agreed, with no clinical data |
+| Long numbers refused in the reference field | Keeps medical record numbers out by design |
+| Hard delete, not hiding | A family's or organisation's deletion must really remove the data |
+| Separate HTML email module | Organisation emails need a clear button, and the existing maker emails stay plain text and untouched |
+| The `discovered` item stored as its own field | Matching and the interface can use it without parsing a sentence |
+
+## Q. Challenges
+
+1. **Server would not start** (`No module named 'wishbook'`). Cause: the new helper lives in `routers/`, and `portrait.py` imported it as a top-level module. Fix: `from routers.wishbook import headline_tags`.
+2. **Demo memories were refused by the database** (null `token`, then null `consent_given`). Cause: `circle_response` requires a link token and a consent flag. Fix: create a Wish Circle invite for each demo person and insert the memories with that token and consent recorded. The demo copy carries both across.
+3. **Secrets appeared in pasted output** (admin token, private links, keys). They must be rotated, and Swagger output must never go into the public repository or Devpost screenshots.
+
+## R. Known limits (additions)
+* The organisation layer is a pilot-ready backend. No real organisation has used it. A real pilot also needs a privacy policy for organisations, a data-processing agreement, and legal review.
+* Approval is manual, with one reviewer.
+* Emails from a free address may reach spam. A domain of our own would fix this.
+* `/org-portal/apply` relies on the per-email limit and the general rate limit. A specific per-IP limit (like Wish Maker applications) is not added yet.
+* Average maker reply time is empty until real Wish Makers reply. Sample makers reply instantly and are excluded.
+* Matching stores `discovered` but does not use it yet.
+* Audit rows are kept after a story is deleted. They hold only an opaque case key and a member's display name.
+
+## S. What remains
+1. Set `FRONTEND_URL` and `ALLOWED_ORIGINS` on Render to the deployed frontend, and test the approval email link from the live site.
+2. Tests 40 to 43 above.
+3. Add a per-IP limit for `/org-portal/apply` in `guard.py`.
+4. Update `docs/privacy.md` with the organisation layer (what is stored, who sees it, retention, deletion, roles, consent record). Update `docs/deployment.md` with the new migrations (007, 008, 009) and `ORG_CASE_TTL_DAYS`.
+5. Final judge test, README, Devpost, submission.
+
+## T. Reusable text
+
+**Devpost, "What's next" (for hospices):**
+Genie is free for families. Hospices, hospitals and care homes can apply for a coordination page: a private dashboard where staff open a story only after the person or their family agrees, follow each wish through to a Wish Maker, and keep or delete stories at any time. It stores no clinical information, and no organisation has used it yet. It is ready for a pilot.
+
+**Devpost, "Safety and privacy" (organisations):**
+Organisations are approved by a person before they can open anything. Staff have roles, viewers are read-only, and every action is logged. Each story records that the person or their family agreed. Reference labels cannot hold medical record numbers, and deleting a story removes everything linked to it.
+
