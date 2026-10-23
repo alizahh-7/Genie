@@ -93,9 +93,9 @@ def start_demo(body: Optional[StartIn] = None):
             """
             insert into wish
               (person_id, title, description, mode, source_items, kind, maker_type,
-               tags, basis, why, affinity, created_at)
+               tags, basis, why, affinity, discovered, created_at)
             select %s, title, description, mode, source_items, kind, maker_type,
-                   tags, basis, why, affinity,
+                   tags, basis, why, affinity, discovered,
                    now() + row_number() over (order by created_at) * interval '1 millisecond'
             from wish where person_id = %s
             """,
@@ -110,6 +110,21 @@ def start_demo(body: Optional[StartIn] = None):
             """,
             (new_id, source_id),
         )
+        # Fictional family memories for the Wish Book. If this fails, the demo still works.
+        try:
+            with conn.transaction():
+                conn.execute(
+                    """
+                    insert into circle_response
+                      (token, person_id, contributor_first_name, answers, consent_given, created_at)
+                    select token, %s, contributor_first_name, answers, consent_given,
+                           now() + row_number() over (order by created_at) * interval '1 millisecond'
+                    from circle_response where person_id = %s
+                    """,
+                    (new_id, source_id),
+                )
+        except Exception as exc:
+            log.warning("Demo memories were not copied: %s", exc)
 
     matches = []
     try:

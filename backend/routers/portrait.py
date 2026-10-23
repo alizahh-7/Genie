@@ -6,6 +6,7 @@ from psycopg.types.json import Jsonb
 from pydantic import BaseModel, Field
 
 from db import get_conn, require_person
+from routers.wishbook import headline_tags
 
 router = APIRouter(prefix="/persons", tags=["portrait"])
 
@@ -68,4 +69,5 @@ def get_portrait(person_id: UUID):
             """,
             (person_id,),
         ).fetchall()
-    return {"items": rows}
+    # top_tags: the few tag names worth drawing (genre, kind of place, setting), in a fixed order.
+    return {"items": [dict(r, top_tags=headline_tags(r["tags"])) for r in rows]}

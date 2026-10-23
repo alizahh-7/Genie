@@ -140,10 +140,6 @@ def learned_lines(first_name: str, portrait, voices) -> list:
     if film:
         lines.append(f"Stories {first_name} enjoyed: {_join([p['name'] for p in film])}.")
 
-    for v in voices:
-        joy = (v["answers"] or {}).get("joy")
-        if joy:
-            lines.append(f"{v['contributor_first_name']} remembers: {joy}")
     return lines
 
 
@@ -292,7 +288,10 @@ def render_html(c: dict) -> str:
         out.append("<h2>In their own words</h2>")
         for v in voices:
             who = e(v.get("from", ""))
-            for key, text in (v.get("answers") or {}).items():
+            answers = v.get("answers") or {}
+            ordered = [k for k in QUESTION_LABELS if k in answers] + [k for k in answers if k not in QUESTION_LABELS]
+            for key in ordered:
+                text = answers[key]
                 about = e(QUESTION_LABELS.get(key, key))
                 out.append(f"<blockquote>{e(str(text))}<cite>{who}, {about}</cite></blockquote>")
 
