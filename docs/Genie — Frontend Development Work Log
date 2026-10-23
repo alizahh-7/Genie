@@ -1,0 +1,474 @@
+# Genie — Frontend Development Work Log
+
+**Developer:** Syeda Alizah  
+**Role:** Frontend Development, UI/UX and Backend Integration  
+**Project:** Genie — Qloo Agentic Hackathon  
+**Repository:** [alizahh-7/Genie](https://github.com/alizahh-7/Genie)  
+**Period:** October 2026  
+**Working Branch:** `main`
+
+---
+
+## 1. My Role in Genie
+
+I am responsible for developing and integrating Genie's frontend experience.
+
+My work covers the visual interface, user journeys, API integration, frontend debugging, testing, responsive design, and presentation of Qloo evidence.
+
+The project is developed collaboratively:
+
+- **Syeda Alizah:** Frontend and user experience.
+- **Zunairah:** Backend development and API contracts.
+- **Umaima:** Engine-related development and technical implementation.
+
+This document records my frontend work, implementation decisions, testing, and progress throughout the project.
+
+---
+
+## 2. Initial Frontend Setup
+
+I worked with the existing Genie repository using Windows PowerShell and Visual Studio Code.
+
+### Project structure
+
+- Repository: `C:\Users\dell\Genie`
+- Frontend: `C:\Users\dell\Genie\frontend`
+- Backend: `C:\Users\dell\Genie\backend`
+- Framework: Next.js 14
+- Language: TypeScript
+- UI: React and Tailwind CSS
+
+The frontend communicates with the deployed backend through:
+
+`NEXT_PUBLIC_API_URL=https://genie-ld8p.onrender.com`
+
+I configured the local frontend environment, installed dependencies, inspected existing routes, tested backend connectivity, and used the `main` branch for integration.
+
+The application runs locally through `npm run dev`.
+
+---
+
+## 3. Frontend Integration
+
+A major part of my work involved connecting existing frontend screens to actual backend functionality.
+
+The application includes:
+
+- Landing page.
+- Fictional-person demo.
+- New-person onboarding.
+- Person overview.
+- Taste portrait.
+- General AI vs Genie comparison.
+- Generated wishes.
+- Wish Maker discovery.
+- Wish Book.
+- Bedside Kit.
+- Reaction Mode.
+- Family Circle.
+- Shared token-based pages.
+
+I worked to preserve existing functionality while improving how backend responses are presented.
+
+An important principle throughout development has been to use actual backend data rather than hardcoded recommendation results or fabricated Qloo activity.
+
+---
+
+## 4. Visual Identity and Landing Page
+
+I worked on maintaining Genie's distinctive emotional visual identity.
+
+The landing experience uses:
+
+- A blended nighttime background.
+- Moon and star elements.
+- Subtle clouds and lighting.
+- Gentle animation.
+- Warm typography.
+- Clear calls to action.
+
+The visual direction aims to feel calm, compassionate and memorable rather than like a conventional technical dashboard.
+
+The core message remains:
+
+**Everyone deserves to be known before they go.**
+
+During subsequent frontend updates, preserving this background and the existing page functionality was an explicit requirement.
+
+---
+
+## 5. Phase 1 — Frontend Reliability Fixes
+
+Phase 1 addressed seven issues in the existing interface.
+
+### 5.1 Bedside Kit
+
+Corrected playlist presentation so the actual track name and label are displayed.
+
+Removed misleading wording generated from raw backend fields, including phrases such as *because of reacted*.
+
+### 5.2 Compare
+
+Improved the handling of null, blank and empty fields.
+
+The interface now avoids unnecessary empty placeholders while retaining meaningful comparison data.
+
+### 5.3 Error Handling
+
+Introduced endpoint-specific handling for missing resources.
+
+A missing person, missing comparison and missing Wish Book now produce different messages.
+
+### 5.4 Wish Book
+
+Improved source separation and tag presentation.
+
+Family-provided information is kept distinct from inferred information.
+
+Visible tags are limited to five per item.
+
+### 5.5 Things We Learned
+
+Removed vague mood-only filler while retaining concrete observations.
+
+### 5.6 Qloo Activity Log
+
+Implemented more readable activity descriptions and preserved the ability to inspect raw log entries.
+
+### 5.7 Wish Maker Cards
+
+Improved maker labels, sample identification and explanations of Qloo, text and type-based matching.
+
+### Phase 1 integration
+
+The Phase 1 patch was applied to the existing frontend and pushed to GitHub.
+
+**Verified commit:**
+
+`a9d2bc9 — Frontend Phase 1 fixes: bedside kit, compare, 404 handling, wish book, qloo log, maker labels`
+
+### Actual local verification
+
+| Check | Result |
+|---|---|
+| TypeScript | PASS |
+| Vitest | 36/36 PASS |
+| Production build | PASS |
+| GitHub push | Confirmed on main |
+| Local Next.js server | Started successfully |
+
+The Phase 1 implementation assistant additionally reported 43 successful browser checks against a mock backend.
+
+These mock results are distinguished from live API verification.
+
+---
+
+## 6. Phase 2 — Judge-Facing Redesign
+
+Phase 2 focused on communicating Genie's value more clearly to hackathon judges.
+
+The frontend was redesigned to explain what Genie does, how Qloo contributes, and why the results are more meaningful than generic suggestions.
+
+### 6.1 Compare Hero
+
+The comparison page was redesigned around:
+
+**The same facts. One side knows why.**
+
+It presents two balanced columns:
+
+- A general AI.
+- Genie, using Qloo.
+
+An evidence scoreboard uses available backend metrics rather than invented values.
+
+### 6.2 Show What Qloo Did
+
+A reusable toggle provides visual emphasis for supported Qloo-derived information.
+
+The interface explains four Qloo-related activities:
+
+- Understand.
+- Discover.
+- Match.
+- Learn.
+
+Unknown-source information and non-Qloo maker matches must not be presented as confirmed Qloo evidence.
+
+### 6.3 Guided Meet Nani Demo
+
+The Demo experience was converted into an eight-step journey:
+
+1. Meet Nani.
+2. Watch what Genie did.
+3. Explore her portrait.
+4. Discover her wishes.
+5. Compare General AI with Genie.
+6. Explore Wish Makers.
+7. Preview the Wish Book.
+8. Start a new person's journey.
+
+The original dashboard remains accessible through See Everything.
+
+The journey retains the backend-provided person ID through navigation.
+
+### 6.4 Landing Improvements
+
+The landing page was updated with a concrete explanation of Genie's value and illustrated Nani/Sana demo cards.
+
+The existing animated background was preserved.
+
+### 6.5 Portrait Counters
+
+Added a presentation layer for real Qloo evidence metrics, including available lookup, taste-link and discovery counts.
+
+The implementation avoids hardcoded metrics and overlapping lookup counts.
+
+### Actual Phase 2 local verification
+
+I executed the following commands:
+
+`npm run typecheck`
+
+`npm test`
+
+`npm run build`
+
+Results:
+
+| Check | Result |
+|---|---|
+| TypeScript | PASS |
+| Vitest | 65/65 PASS |
+| Test files | 5/5 PASS |
+| Production compilation | PASS |
+| Static pages generated | 9/9 |
+
+The implementation assistant also reported 61/61 browser assertions against a local mock API.
+
+The complete live-browser journey still requires separate confirmation.
+
+---
+
+## 7. Live Backend Connectivity Testing
+
+I verified the deployed backend using PowerShell.
+
+Endpoint:
+
+`GET https://genie-ld8p.onrender.com/demo/personas`
+
+The live response successfully returned two fictional personas:
+
+| Persona | Birth year | Region | Language |
+|---|---:|---|---|
+| Nani | 1948 | Hyderabad | Hindi |
+| Sana | 1992 | Seoul | Korean |
+
+This confirmed that the deployed demo-person endpoint was reachable.
+
+I also ran the frontend smoke script.
+
+Its initial results were:
+
+- Frontend `/`: ERR.
+- Frontend `/demo`: ERR.
+- Frontend `/start`: ERR.
+- Backend demo personas: OK.
+
+The frontend smoke checks require further verification with the local Next.js server running and the correct port configured.
+
+A successful backend API request does not, by itself, prove that every frontend page is fully integrated.
+
+---
+
+## 8. Phase 3 — Complete the Emotional Journey
+
+Phase 3 was scoped around four major frontend improvements.
+
+### 8.1 Wish Book Redesign
+
+Planned work includes:
+
+- Keepsake-style cover.
+- Personalised presentation.
+- Family-provided memories.
+- Separate guesses.
+- Honest source labels.
+- Print-friendly styling.
+- Shared Wish Book compatibility.
+
+### 8.2 Wish-to-Maker Timeline
+
+The planned visual journey is:
+
+**Suggested → Asked → Accepted → Done**
+
+Stages must reflect actual backend status.
+
+Declined, cancelled and other supported states should be represented accurately.
+
+### 8.3 Watch Genie Learn
+
+This feature will present actual sequential backend operations rather than a simulated progress animation.
+
+The intended sequence is:
+
+1. Create the person.
+2. Build their portrait.
+3. Generate wishes.
+
+The frontend must preserve completed progress if a later operation fails.
+
+This is distinct from Phase 2's saved agent-log replay.
+
+### 8.4 Taste Map
+
+The planned taste map visually connects:
+
+**Person → Favourites → Strongest Taste Tags → Discovered Item**
+
+Only supported relationships and actual available backend data should be displayed.
+
+### Backend coordination
+
+Phase 3 requires confirmation from Zunairah regarding:
+
+- Structured family-memory fields.
+- Maker status values and timestamps.
+- Sequential API request/response contracts.
+- Reliable taste-tag and discovery provenance.
+
+Phase 3 is recorded here as planned work, not completed implementation.
+
+---
+
+## 9. Frontend Testing and Quality Assurance
+
+I use several layers of verification.
+
+### TypeScript
+
+Checks type compatibility and catches integration errors.
+
+### Unit tests
+
+Vitest validates frontend utilities, components and behaviour.
+
+### Production build
+
+Next.js production compilation confirms the application can be built.
+
+### Smoke tests
+
+Basic checks verify that frontend routes and backend connectivity are reachable.
+
+### Browser testing
+
+Manual localhost verification is required for actual navigation, visual behaviour, interactive controls and real API integration.
+
+### Testing principle
+
+Mock-backed tests and live-backend tests are recorded separately.
+
+Passing a unit test or mock browser check is not treated as proof that every live API workflow is functioning.
+
+---
+
+## 10. Development Challenges and Resolutions
+
+### Backend connectivity
+
+The frontend depends on a separately deployed backend.
+
+I verified the configured API URL and tested live endpoints independently to distinguish frontend problems from backend availability issues.
+
+### Raw backend data
+
+Several initial pages displayed technical fields directly.
+
+Phase 1 introduced cleaner presentation and readable explanations while retaining the underlying information.
+
+### Misleading source attribution
+
+Not every result comes from Qloo.
+
+The frontend was improved to distinguish Qloo-supported information from family-provided details, text matches, type matches and guesses.
+
+### Demo storytelling
+
+A dashboard containing many links was insufficient to demonstrate the product's value quickly.
+
+Phase 2 introduced a guided journey while retaining access to the original dashboard.
+
+### Build-generated Git changes
+
+TypeScript can modify `frontend/tsconfig.tsbuildinfo` during verification.
+
+This generated change is reviewed separately and is not treated as an intentional feature update.
+
+### Mock versus live verification
+
+Implementation patches were tested against mock API fixtures, while actual local verification included TypeScript, Vitest, production builds and a live backend connectivity request.
+
+Remaining live-browser checks are tracked separately rather than reported as completed.
+
+---
+
+## 11. Collaboration and Responsibilities
+
+Frontend development requires coordination with the backend and engine.
+
+My responsibility is to implement the interface, connect existing endpoints, handle returned data and provide honest feedback about missing integration fields.
+
+Backend changes remain with Zunairah.
+
+Engine-related functionality remains with the relevant engine developer.
+
+When an API field is missing, I document the required contract rather than inventing production data.
+
+---
+
+## 12. Current Progress Summary
+
+| Area | Status |
+|---|---|
+| Frontend setup | Completed |
+| Existing route integration | Established; ongoing verification |
+| Animated landing identity | Implemented |
+| Phase 1 reliability fixes | Implemented and pushed |
+| Phase 1 automated testing | Passed |
+| Phase 2 judge-facing redesign | Implemented locally |
+| Phase 2 automated testing | Passed |
+| Live demo-person endpoint | Verified |
+| Full Phase 2 live-browser journey | Pending verification |
+| Phase 3 design and requirements | Scoped |
+| Phase 3 backend coordination | Required |
+| Phase 3 implementation | Not yet verified |
+
+---
+
+## 13. Next Steps
+
+The remaining frontend priorities are:
+
+1. Complete manual verification of the Phase 2 eight-step journey against the live backend.
+2. Confirm the Phase 2 Git integration and push.
+3. Obtain Phase 3 backend contract confirmation.
+4. Implement and verify the Phase 3 frontend.
+5. Test Wish Book printing, maker status handling and sequential execution.
+6. Complete mobile, accessibility and visual regression checks.
+7. Capture genuine application screenshots for the hackathon submission.
+8. Update the frontend technical report with final implementation and test results.
+
+---
+
+## 14. Contribution Summary
+
+My work on Genie includes frontend development, API integration, UI/UX improvements, data presentation, Qloo transparency, debugging, testing and technical documentation.
+
+Across Phase 1 and Phase 2, the frontend evolved from a set of functional application screens into a more coherent, evidence-driven product experience.
+
+The objective throughout has been to make Genie's technical capabilities visible and understandable while preserving the emotional significance of the people and stories at the centre of the application.
+
+*This work log records verified progress separately from planned features and will be updated as development continues.*
