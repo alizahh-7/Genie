@@ -6,6 +6,7 @@ import FavouriteEditor from "@/components/FavouriteEditor";
 import { PortraitCard, WishCard, WhatGenieDid, QlooCalls } from "@/components/story";
 import { agentLog, agentRun, deletePerson, getPerson, getPortrait, getWishes } from "@/lib/api";
 import { useTask } from "@/lib/useTask";
+import { PERSON_EXPIRED_CODE } from "@/lib/errors";
 import type { AgentLog, Fav, Person, PortraitItem, Wish } from "@/lib/types";
 export default function PersonPage() {
   const { id } = useParams<{ id: string }>(); const router = useRouter(); const t = useTask();
@@ -13,7 +14,12 @@ export default function PersonPage() {
   const [wishes, setWishes] = useState<Wish[]>([]); const [log, setLog] = useState<AgentLog | null>(null);
   const [editing, setEditing] = useState(false); const [favs, setFavs] = useState<Fav[]>([]); const [copied, setCopied] = useState(false);
   const fetchAll = useCallback(async () => {
-    const [p, pr, w, l] = await Promise.all([getPerson(id), getPortrait(id), getWishes(id), agentLog(id).catch(() => [])]);
+    // Look the person up first and let its failure win: only GET /persons/{id} returning 404 means "expired".
+    const personReq = getPerson(id);
+    const rest = Promise.all([getPortrait(id), getWishes(id), agentLog(id).catch(() => [])]);
+    rest.catch(() => {}); // avoids an unhandled rejection when the person lookup fails first
+    const p = await personReq;
+    const [pr, w, l] = await rest;
     setPerson(p); setItems(pr.items ?? []); setWishes(w ?? []);
     const row = [...l].reverse().find(x => x.step === "agent"); setLog(row ? row.log : null);
   }, [id]);
@@ -28,8 +34,8 @@ export default function PersonPage() {
   const copy = async () => { try { await navigator.clipboard.writeText(window.location.href); setCopied(true); setTimeout(() => setCopied(false), 3000); } catch {} };
   if (!person) return (
     <Shell>
-      {t.busy || (!t.error) ? <Gathering slow={t.slow} title="Opening their story…" /> : t.status === 404
-        ? <div className="py-24 text-center"><h1 className="text-5xl">This page has expired or was deleted.</h1><p className="mb-8 mt-4 text-navy/70">Nothing more is kept. You are welcome to begin again.</p><Btn href="/">Back to the start</Btn></div>
+      {t.busy || (!t.error) ? <Gathering slow={t.slow} title="Opening their story…" /> : t.code === PERSON_EXPIRED_CODE
+        ? <div className="py-24 text-center"><h1 className="text-5xl">This page has expired or was deleted.</h1><p className="mb-8 mt-4 text-navy/70">Nothing more is kept. You are welcome to begin again.</p><div className="flex flex-wrap justify-center gap-3"><Btn href="/start">Start a new story</Btn><Btn quiet href="/">Back to the start</Btn></div></div>
         : <ErrorBox message={t.error} onRetry={load} />}
     </Shell>
   );

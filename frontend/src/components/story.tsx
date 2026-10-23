@@ -1,5 +1,8 @@
+"use client";
+import { useState } from "react";
 import { Card } from "./ui";
 import { confidenceWord, isNotInQloo, matchedVia, modeNote, seconds, shownTags, sourceLabel } from "@/lib/format";
+import { qlooRowDisplay } from "@/lib/qlooLog";
 import type { AgentLog, PortraitItem, Wish } from "@/lib/types";
 const chip = (s: string) => (s === "told" ? "bg-sage/25 text-sagedeep" : s === "reacted" ? "bg-navy/10 text-navy" : "bg-sand text-navy/80");
 export function PortraitCard({ item, i }: { item: PortraitItem; i: number }) {
@@ -50,12 +53,25 @@ export function WhatGenieDid({ log }: { log: AgentLog | null }) {
   );
 }
 export function QlooCalls({ log }: { log: AgentLog | null }) {
-  const rows = log?.qloo_log ?? [];
-  if (!rows.length) return <p className="text-navy/60">No Qloo calls were recorded for this story yet.</p>;
+  return <QlooCallList rows={log?.qloo_log} empty="No Qloo calls were recorded for this story yet." />;
+}
+/** Friendly one-line descriptions by default; "Show raw log" reveals the original technical entries unchanged. */
+export function QlooCallList({ rows, empty }: { rows?: unknown[] | null; empty?: string }) {
+  const [raw, setRaw] = useState(false);
+  const list = (rows ?? []).map(qlooRowDisplay);
+  if (!list.length) return empty ? <p className="text-navy/60">{empty}</p> : null;
   return (
-    <ul className="space-y-2 text-sm">{rows.map((r, i) => (
-      <li key={i} className="flex flex-wrap justify-between gap-x-4 border-b border-navy/10 pb-2"><span><b className="font-medium">{r.step}</b> {r.request}</span><span className="text-navy/60">{r.status}, {r.ms} ms</span></li>))}
-    </ul>
+    <div>
+      <div className="mb-3 flex justify-end">
+        <button type="button" aria-pressed={raw} onClick={() => setRaw(v => !v)} className="rounded-full border border-ivory/35 px-4 py-1.5 text-sm text-ivory hover:border-gold hover:bg-ivory/10">{raw ? "Hide raw log" : "Show raw log"}</button>
+      </div>
+      <ul className={raw ? "space-y-2 font-mono text-xs" : "space-y-2 text-sm"}>{list.map((r, i) => (
+        <li key={i} className="flex flex-wrap justify-between gap-x-4 border-b border-navy/10 pb-2">
+          <span className={raw ? "break-all" : ""}>{raw ? r.raw : r.friendly}</span>
+          {r.meta && <span className="text-navy/60">{r.meta}</span>}
+        </li>))}
+      </ul>
+    </div>
   );
 }
 export { Card };

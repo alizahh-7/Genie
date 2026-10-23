@@ -5,7 +5,7 @@ import type { PortraitItem } from "../types";
 const item = (o: Partial<PortraitItem> = {}): PortraitItem => ({ id: "1", domain: "music", name: "Lag Jaa Gale", tags: [], source_label: "told", confidence: 0.9, resolution_level: 1, matched_name: null, ...o });
 describe("friendlyMessage", () => {
   it("maps statuses to calm wording", () => {
-    expect(friendlyMessage(404)).toBe("This page has expired or was deleted.");
+    expect(friendlyMessage(404)).not.toMatch(/expired|deleted/i);
     expect(friendlyMessage(429)).toContain("slow down");
     expect(friendlyMessage(504)).toContain("longer than expected");
     expect(friendlyMessage(0)).toContain("could not reach");

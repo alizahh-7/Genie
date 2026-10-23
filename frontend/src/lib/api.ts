@@ -1,9 +1,9 @@
-import { ApiError, friendlyMessage } from "./errors";
+import { ApiError, friendlyMessage, PERSON_EXPIRED_CODE, PERSON_EXPIRED_MESSAGE, type NotFoundOverride } from "./errors";
 import type { AgentLog, AgentResult, Fav, Person, Persona, PortraitItem, Wish } from "./types";
 export const API = (process.env.NEXT_PUBLIC_API_URL || "https://genie-ld8p.onrender.com").replace(/\/$/, "");
 const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
-export async function api<T>(path: string, opts: { method?: string; body?: unknown; timeout?: number } = {}): Promise<T> {
-  const { method = "GET", body, timeout = 90000 } = opts;
+export async function api<T>(path: string, opts: { method?: string; body?: unknown; timeout?: number; notFound?: NotFoundOverride } = {}): Promise<T> {
+  const { method = "GET", body, timeout = 90000, notFound } = opts;
   for (let attempt = 0; ; attempt++) {
     const c = new AbortController(); const t = setTimeout(() => c.abort(), timeout);
     try {
@@ -14,6 +14,7 @@ export async function api<T>(path: string, opts: { method?: string; body?: unkno
       });
       const text = await r.text();
       let data: unknown; try { data = text ? JSON.parse(text) : undefined; } catch { data = undefined; }
+      if (!r.ok && r.status === 404 && notFound) throw new ApiError(404, notFound.message, notFound.code);
       if (!r.ok) throw new ApiError(r.status, friendlyMessage(r.status, (data as { detail?: unknown } | undefined)?.detail));
       return data as T;
     } catch (e) {
@@ -27,7 +28,7 @@ export async function api<T>(path: string, opts: { method?: string; body?: unkno
 export const personas = () => api<Persona[]>("/demo/personas");
 export const demoStart = (persona: number) => api<{ person_id: string }>("/demo/start", { method: "POST", body: { persona } });
 export const createPerson = (b: object) => api<Person>("/persons", { method: "POST", body: b });
-export const getPerson = (id: string) => api<Person>(`/persons/${id}`);
+export const getPerson = (id: string) => api<Person>(`/persons/${id}`, { notFound: { message: PERSON_EXPIRED_MESSAGE, code: PERSON_EXPIRED_CODE } });
 export const getPortrait = (id: string) => api<{ items: PortraitItem[] }>(`/persons/${id}/portrait`);
 export const getWishes = (id: string) => api<Wish[]>(`/persons/${id}/wishes`);
 export const agentLog = (id: string) => api<{ step: string; log: AgentLog; created_at: string }[]>(`/persons/${id}/agent-log`);
