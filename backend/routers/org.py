@@ -537,12 +537,15 @@ def extend_case(token: str, case_key: str):
 
 @portal.delete("/{token}/cases/{case_key}")
 def delete_case(token: str, case_key: str):
-    """Removes a story right away. It disappears from every screen at once."""
+    """Permanently deletes a story and everything under it, right away."""
     with get_conn() as conn:
         member = get_member(conn, token)
         need(member, "coordinator")
         case = require_case(conn, member["org_id"], case_key)
-        conn.execute("update person set expires_at = now() where id = %s", (case["person_id"],))
+        # The same delete the family's "Delete everything" uses. It removes the portrait, wishes,
+        # requests, family memories, Wish Book and this case row by cascade.
+        conn.execute("delete from person where id = %s", (case["person_id"],))
+        # The audit row keeps only the opaque case key, never a name.
         audit(conn, member, "case.deleted", case_key)
     return {"deleted": True}
 
