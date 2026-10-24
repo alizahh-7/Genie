@@ -3,6 +3,7 @@ import Link from "next/link";
 import { useEffect, useState, type ReactNode } from "react";
 import { api } from "@/lib/api";
 import { MEDICAL_FALLBACK, pickMedical } from "@/lib/format";
+import { NAV_LINKS } from "@/lib/home";
 
 export function Shell({ children }: { children: ReactNode }) {
   const [med, setMed] = useState(MEDICAL_FALLBACK);
@@ -10,9 +11,9 @@ export function Shell({ children }: { children: ReactNode }) {
   return (
     <div className="relative flex min-h-screen flex-col overflow-x-hidden">
       <header>
-        <nav className="mx-auto flex max-w-5xl items-center justify-between px-6 py-6">
+        <nav className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-y-2 px-6 py-6">
           <Link href="/" className="font-serif text-4xl tracking-tight text-ivory">Genie<span className="text-gold">.</span></Link>
-          <div className="flex gap-3 text-sm text-ivory/75 sm:gap-6 sm:text-base"><Link href="/demo" className="hover:text-gold">Demo</Link><Link href="/start" className="hover:text-gold">Start a story</Link><Link href="/makers/apply" className="hidden hover:text-gold sm:block">Wish Makers</Link></div>
+          <ul aria-label="Main" className="flex flex-wrap items-center justify-end gap-x-4 gap-y-1 text-sm text-ivory/75 sm:gap-x-6 sm:text-base">{NAV_LINKS.map(l => <li key={l.href}><Link href={l.href} className="hover:text-gold">{l.short ? <><span className="sm:hidden">{l.short}</span><span className="hidden sm:inline">{l.label}</span></> : l.label}</Link></li>)}</ul>
         </nav>
       </header>
       <main className="mx-auto w-full max-w-5xl flex-1 px-6 pb-20">{children}</main>
