@@ -1,215 +1,213 @@
-Date: 24 October 2026
-Project: Genie --- Qloo Agentic Hackathon
-Team: Alizah (team lead, frontend and copy); Zunairah (backend,
-data, privacy and deployment); Umaima (agent and Qloo engine).
-Scope: This records the team's supplied backend and engine
-documentation, Phase 3 and Phase 4 frontend changes, and verification
-output shared today. It does not claim a successful Git push or
-complete live end-to-end testing.
+# Genie — Product Development & Daily Work Report
 
-1. What Genie is
-Genie is a wish-discovery companion for families supporting someone near
-the end of life. It starts with what someone loves---music, food,
-places, films and family memories---rather than generic activity
-suggestions. The Qloo-backed engine helps build a Taste Portrait and
-traceable personal wishes. Families can invite contributions through
-Wish Circle, approach suitable Wish Makers, track requests, and compile
-a printable or shareable Wish Book.
+**Date:** 24 October 2026  
+**Project:** Genie — Qloo Agentic Hackathon  
+**Repository:** `alizahh-7/Genie`  
+**Branch:** `main`  
+**Frontend:** Next.js 14.2.35  
+**Backend:** FastAPI + Supabase PostgreSQL  
+**Backend URL:** https://genie-ld8p.onrender.com
 
-Product tagline: Everyone deserves to be known before they go.
+---
 
-Genie is not a medical service. The product explicitly distinguishes
-family-provided information (told), reactions (reacted), inferred
-suggestions (likely) and AI-only content (ai-only). Fictional demo
-people and sample Wish Makers remain clearly labelled.
-2. Architecture and capabilities
-  Layer                               Implementation and responsibility
-  Frontend                            Next.js screens for families,
-                                      makers and organisations
+## 1. Project Overview
 
-  Engine (Umaima)                     Qloo-backed resolution, cached
-                                      calls, six-level fallback, Taste
-                                      Portrait, wishes, Reaction Mode,
-                                      comparison, Bedside Kit
+Genie is an AI-powered wish-discovery companion designed to help families create meaningful moments for loved ones nearing the end of life.
 
-  Backend (Zunairah)                  FastAPI, Supabase Postgres,
-                                      persistence, consent, matching,
-                                      applications, requests, privacy and
-                                  retention
-The supplied backend report documents persistent person, portrait, Wish
-Circle, wish, match, maker and Wish Book data. It also documents Wish
-Maker applications and human approval, stricter verification for
-in-person wishes, private contact details until acceptance,
-feedback/concern handling, private invite links, expiry and deletion.
-The engine contract specifies source labels, traceable wish metadata,
-fallback behaviour and timeouts. Raw provider-derived Qloo response data
-must not be published in public examples or fixtures.
-Product journey
-1. Start a story: Create a person using minimal details.
-2. Taste Portrait: Add favourites and build a portrait with
-   provenance.
-3. Wish Circle: Collect memories from family through a private
-   consent-based link.
-4. Wishes: Generate personal ideas with source items and
-   uncertainty labels.
-5. Wish Makers: See matching suggestions, send requests and track
-   accepted, declined, withdrawn or completed status.
-6. Wish Book: Compile a keepsake, print it and optionally share it.
-7. Privacy: Manage retention and deletion.
-Other documented experiences include Reaction Mode, Compare, an agent
-log/replay and a comfort-oriented Bedside Kit. The organisation pathway
-has a public application and private coordination portal.
-3. Phase 3 baseline before today's work
-The previously installed frontend patch added:
-- Wish Book screens, compilation, print/share and provenance
-  presentation.
-- Maker request timeline and contact/sample safeguards.
-- /start live learning flow and /demo fictional replay.
-- Taste Map.
-- /for-hospices application and /org/[token] portal with
-  dashboard, cases, team and activity.
-Prior baseline: 124/124 tests, typecheck and build passing. Mock
-browser testing was not a substitute for live Render integration.
-4. Today's product-first Phase 4 refinement
-Why
-Zunairah raised a specific concern: the landing page made Genie look
-like a Nani-focused fictional demo despite the backend having been built
-as a persistent, functional product. The brief was to represent the
-engineering work accurately, not to conceal sample disclaimers or invent
-adoption.
+Rather than generating generic suggestions, Genie begins with what makes a person unique: their favourite music, food, places, films, memories, cultural preferences and personal stories.
 
-The Claude prompt used the detailed backend report and engine contract
-and requested a product-first hierarchy, discoverable workflows and a
-stronger hospice experience.
-Patch received
-genie-product-first-patch.zip: nine files (four modified, five
-new).
+Using Qloo-powered taste intelligence, Genie helps families understand someone's preferences, discover meaningful wishes, coordinate with Wish Makers and preserve their memories through a personalised Wish Book.
 
-  File                                         Purpose
-  src/app/page.tsx                           Product-first landing page
-  src/components/ui.tsx                      Main navigation
-  src/app/for-hospices/page.tsx              Public hospice positioning
-  src/app/org/[token]/page.tsx               Organisation dashboard improvements
-  src/lib/home.ts                            Homepage content/route metadata
-  src/components/ServiceStatus.tsx           /health status indicator
-  src/lib/orgAttention.ts                    Organisation attention-list logic
-  src/lib/__tests__/phase4.test.ts           Structural and route tests
-  src/lib/__tests__/phase4.render.test.tsx   Rendering tests
+**Core product philosophy:**
 
-A reported src/app/page.tsx.bak file should be excluded from Git.
-Landing page changes
-The new hierarchy introduces Meet Genie, places Start a story
-before Explore the demo, displays a live service indicator and ten
-capability cards under What Genie actually does, explains the
-workflow, then introduces Nani and Sana under Explore Genie with a
-fictional story. Wish Maker and hospice pathways, privacy and trust
-follow. The original animated background remains.
+*Everyone deserves to be known before they go.*
 
-Capability cards distinguish directly accessible routes from features
-inside an existing story. Navigation now exposes Start a story, How
-Genie works, Explore demo, Become a Wish Maker and For hospices.
-Hospice changes
-The public page describes the family journey as free, presents
-organisation coordination and retains the fictional label on its
-illustrative preview. The application form remains available.
+Genie is not a medical service. Its purpose is emotional connection, personalisation, family participation and meaningful wish coordination.
 
-The private organisation dashboard now has a Needs attention list
-for concerns, near-term retention, pending maker replies and paused
-stories; a sample-organisation banner where appropriate; an empty state
-for real organisations; and consent notes. Live dashboard response
-shapes still require verification.
-5. Work and verification performed today
-Packaging and installation
-The latest frontend source was packaged as genie-latest-frontend.zip,
-excluding local environment files, node_modules, .next and build
-metadata. The Phase 4 patch was overlaid into frontend/src.
-Automated checks
-  Check                                        Observed outcome
-  npm run typecheck                          PASS
-  npm test                                   146/146 PASS, 9 test files; 22 new tests
-  npm run build                              PASS, Next.js 14.2.35
-  Patch author's pristine overlay              Reported PASS
-  Patch author's mock-backend browser checks   Reported 37/37 PASS
-  Full live Render end-to-end workflows        NOT TESTED
-Homepage source verification
-The first PowerShell check failed because $home conflicts with
-built-in read-only $HOME (PowerShell is case-insensitive). After
-renaming it to $pageContent, 7/7 checks passed:
-- Meet Genie present.
-- Start a story CTA present.
-- What Genie actually does present.
-- Fictional demo separate.
-- Wish Maker pathway present.
-- Hospice pathway present.
-- Old "Nani loved a song" hero removed.
-The earlier failed check output was a script error, not a product
-failure.
-Live backend safe GET verification
-All HTTP 200:
-- https://genie-ld8p.onrender.com/health
-- /health/db
-- /demo/personas
-- /meta/notices
-These establish availability of those endpoints, not every live
-workflow.
-Local production server and routes
-The initial npm run start -- -p 3002 passed the port incorrectly
-through the project's npm script. The corrected command worked:
-cd C:\Users\dell\Genie\frontend
-npx next start -p 3002
-Server reported Ready. All 8/8 checked routes returned HTTP 200:
+### Team Responsibilities
 
-  Route                Status
-  /                  200
-  /start             200
-  /demo              200
-  /makers/apply      200
-  /maker/recover     200
-  /for-hospices      200
-  /org/not-a-token   200
-  /hospice           200
+| Member | Responsibility |
+|---|---|
+| Alizah | Team lead, frontend development, integration and product experience |
+| Zunairah | Backend development, database, APIs, privacy and deployment |
+| Umaima | Qloo integration, agentic engine and recommendation logic |
 
-Caution: HTTP 200 on a client-rendered invalid-token route does not
-prove its error UI or access control. Visually confirm that it displays
-an invalid-link state without private data.
-6. Result and remaining limitations
-The key product-positioning change is present in source and builds
-successfully: Genie, not Nani, leads the homepage; real
-family/maker/hospice capabilities are discoverable; the fictional demo
-is secondary and labelled. This directly addresses Zunairah's concern
-without exaggerating real-world adoption.
+---
 
-Still to verify:
-- Desktop/mobile visual QA and every interactive link.
-- Real-story, agent and Wish Book end-to-end workflows against live
-  backend using controlled test data.
-- Organisation response shapes and whether requested truly means
-  "Awaiting maker reply."
-- Viewer restrictions and invalid-token UI.
-- Deployed frontend CORS for the browser health indicator.
-- Dependency audit and safe resolution of any vulnerabilities.
-- No secrets, private tokens, .env*, page.tsx.bak, build output or
-  accidental root lockfile in the commit.
-- Actual Git push result; no successful push output was provided in
-  the conversation.
-7. Suggested final Git check
-cd C:\Users\dell\Genie
-git branch --show-current
-git status --short
-git diff --check
-git diff --cached --check
-git log -1 --oneline
-git status -sb
-Stage only frontend/src if still uncommitted, review the staged diff,
-then commit and push on main. Do not use git add ..
-8. End-of-day summary
-Milestone: Repositioned Genie from a demo-led homepage to a
-product-led experience that surfaces the built family, Wish Maker and
-hospice workflows while preserving honest fictional-data labels.
+## 2. Product Architecture
 
-Measured results: 146/146 automated tests, typecheck and production
-build PASS; 7/7 homepage source checks; 4/4 safe live backend GET
-checks; 8/8 local production-route HTTP checks.
+Genie consists of three connected layers.
 
-Next priority: Visual QA, targeted live integration checks, Git push
-verification and hackathon submission readiness.
+### Frontend
+
+Built using Next.js and TypeScript.
+
+Responsible for:
+
+- Family onboarding and person creation.
+- Taste Portrait and Taste Map presentation.
+- Wish generation and exploration.
+- Wish Circle participation.
+- Wish Maker discovery and request tracking.
+- Wish Book compilation and sharing.
+- Hospice organisation applications and coordination.
+- Privacy, consent and retention interfaces.
+- Fictional demonstration experiences.
+
+### Backend
+
+Built using FastAPI and Supabase PostgreSQL.
+
+The backend documentation describes persistent support for people, portraits, wishes, Wish Circle contributions, Wish Makers, requests, Wish Books, consent and retention.
+
+It also includes application/review workflows for Wish Makers, private management links, request statuses, contact privacy and organisation coordination.
+
+### Qloo and Agentic Engine
+
+The engine uses Qloo-powered taste resolution to support personalisation and recommendation generation.
+
+Its documented capabilities include:
+
+- Taste resolution and fallback handling.
+- Taste Portrait generation.
+- Traceable wish recommendations.
+- Reaction Mode.
+- Comparison experiences.
+- Bedside Kit.
+- Source and provenance labels.
+
+Genie distinguishes between information directly supplied by a family, reactions, inferred preferences and AI-generated suggestions.
+
+Raw Qloo response data must not be exposed in public documentation or fixtures.
+
+---
+
+## 3. Core Product Features
+
+### 3.1 Start a Story
+
+Families can begin a real Genie journey by creating a profile for their loved one.
+
+The onboarding process collects essential details and starts building a personalised experience.
+
+**Route:** `/start`
+
+### 3.2 Taste Portrait and Taste Map
+
+Genie develops an understanding of a person's preferences using information contributed by their family and the Qloo-powered engine.
+
+The interface preserves provenance instead of presenting every recommendation as a confirmed fact.
+
+**Route:** `/person/[id]/taste-map`
+
+### 3.3 Wish Circle
+
+Families can invite relatives and friends to contribute memories, preferences and meaningful information through a private link.
+
+Consent and privacy remain important parts of this process.
+
+### 3.4 Personalised Wishes
+
+Genie uses the available information to suggest experiences that reflect the person's tastes, memories and interests.
+
+Recommendations include supporting information rather than presenting unexplained AI outputs.
+
+**Route:** `/person/[id]/wishes`
+
+### 3.5 Wish Makers
+
+Wish Makers can apply to participate in fulfilling wishes.
+
+The documented workflow includes application review, request management, acceptance/decline and contact privacy.
+
+Real Wish Makers and sample makers must remain clearly distinguishable.
+
+**Routes:**
+
+- `/makers/apply`
+- `/maker/recover`
+- `/maker/[token]`
+
+### 3.6 Wish Book
+
+The Wish Book brings meaningful information together into a keepsake that families can compile, print and share.
+
+**Routes:**
+
+- `/person/[id]/wish-book`
+- `/book/[token]`
+
+### 3.7 Hospice Organisation Portal
+
+Genie also provides an organisation-facing pathway for hospice teams.
+
+It includes a public application page and a private coordination interface covering cases, team members and activity.
+
+**Routes:**
+
+- `/for-hospices`
+- `/org/[token]`
+- `/org/[token]/cases/[caseKey]`
+- `/org/[token]/team`
+- `/org/[token]/activity`
+
+---
+
+# 4. Frontend Development — Phase 3
+
+Before today's refinement, the Phase 3 frontend integration introduced several major product workflows.
+
+### Work included
+
+1. Wish Book compilation, sharing and printing interfaces.
+2. Wish Maker request timelines and status handling.
+3. Real-user onboarding through `/start`.
+4. Fictional demonstration replay through `/demo`.
+5. Taste Map with provenance.
+6. Public hospice application page.
+7. Private hospice organisation dashboard.
+8. Organisation case, team and activity screens.
+9. Privacy-aware sample and real-user distinctions.
+
+### Phase 3 Verification
+
+The existing frontend passed:
+
+- TypeScript validation.
+- 124 automated tests.
+- Next.js production build.
+
+These checks established the frontend baseline before the next refinement.
+
+---
+
+# 5. Today's Work — 24 October 2026
+
+## Objective: Make Genie Look Like the Actual Product
+
+An important concern raised during integration was that the frontend appeared too focused on fictional demonstration content, especially Nani.
+
+The backend had been developed as a real persistent product, but the landing page was not communicating the full scope of its capabilities.
+
+The goal was therefore to reposition Genie as a complete product experience while preserving clearly labelled fictional examples.
+
+A detailed Claude refinement prompt was prepared using the backend report and engine contract as the source of truth.
+
+The requested changes focused on product positioning, navigation, feature discovery, hospice integration and honest representation of real versus sample functionality.
+
+## 5.1 Phase 4 Patch Delivered
+
+**Patch:** `genie-product-first-patch.zip`
+
+The patch contained nine files: four modified and five new.
+
+| File | Purpose |
+|---|---|
+| `src/app/page.tsx` | Product-first landing page |
+| `src/components/ui.tsx` | Updated navigation |
+| `src/app/for-hospices/page.tsx` | Hospice product positioning |
+| `src/app/org/[token]/page.tsx` | Organisation dashboard improvements |
+| `src/lib/home.ts` | Homepage content and route metadata |
+| `src/components/ServiceStatus.tsx` | Live backend service indicator |
+| `src/lib/orgAttention.ts` | Organisation attention-list logic |
+| `
