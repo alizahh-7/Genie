@@ -2,7 +2,7 @@ import { SOURCE } from "./format";
 import { clean, humanSourceLabel } from "./labels";
 
 export type BookTag = string | { name?: string; type?: string };
-export interface BookPortraitItem { name?: string; domain?: string; tags?: BookTag[]; label?: string; source_label?: string }
+export interface BookPortraitItem { name?: string; domain?: string; tags?: BookTag[]; label?: string; source_label?: string; source?: string }
 
 /* ---------- tags ---------- */
 
@@ -48,7 +48,7 @@ const GUESS = new Set(["likely", "ai-only", SOURCE.likely.toLowerCase(), SOURCE[
  * "other", never "told", so an inference can't be shown as a confirmed family memory.
  */
 export function provenanceOf(p: BookPortraitItem): Provenance {
-  const raw = (clean(p.label) ?? clean(p.source_label) ?? "").toLowerCase();
+  const raw = (clean(p.source) ?? clean(p.label) ?? clean(p.source_label) ?? "").toLowerCase();
   if (!raw) return "other";
   if (TOLD.has(raw)) return "told";
   if (GUESS.has(raw)) return "guess";

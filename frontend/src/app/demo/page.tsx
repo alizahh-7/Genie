@@ -4,7 +4,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Shell, Card, Btn, Gathering, ErrorBox } from "@/components/ui";
 import { Avatar } from "@/components/Avatar";
 import { DemoStory } from "@/components/DemoStory";
-import { demoStart, personas } from "@/lib/api";
+import { compileBook, demoStart, personas } from "@/lib/api";
 import { QlooLayerProvider } from "@/lib/qlooLayer";
 import { parsePersonParam, parseStep, pickPersona } from "@/lib/story";
 import { useTask } from "@/lib/useTask";
@@ -36,9 +36,9 @@ function DemoInner() {
   // One click creates one demo person; the id then lives in the URL, so Next, Back and refresh reuse it.
   const begin = async (n: number) => {
     if (starting.current) return; starting.current = true;
-    try { const res = await s.run(() => demoStart(n)); if (res?.person_id) router.push(storyHref(res.person_id, 1)); } finally { starting.current = false; }
+    try { const res = await s.run(async () => { const r = await demoStart(n); await compileBook(r.person_id).catch(() => undefined); return r; }); if (res?.person_id) router.push(storyHref(res.person_id, 1)); } finally { starting.current = false; }
   };
-  const openFull = async (n: number) => { const res = await s.run(() => demoStart(n)); if (res) router.push(`/person/${res.person_id}`); };
+  const openFull = async (n: number) => { const res = await s.run(async () => { const r = await demoStart(n); await compileBook(r.person_id).catch(() => undefined); return r; }); if (res) router.push(`/person/${res.person_id}`); };
 
   if (personId) return <DemoStory personId={personId} step={step} hrefFor={n => storyHref(personId, n)} />;
   const featured = list ? pickPersona(list, who) : null;

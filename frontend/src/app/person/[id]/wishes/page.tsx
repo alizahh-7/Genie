@@ -1,5 +1,15 @@
 "use client";
-import {useParams} from "next/navigation";import {useState} from "react";import {getWishes,matchWish,getRequests,sendRequest,api,personPath} from "@/lib/api";import type {Wish} from "@/lib/types";import {WishCard} from "@/components/story";import {Page,useLoad,Wait,Action,TextList} from "@/components/Extra";import {Card,Btn,ErrorBox} from "@/components/ui";import {MakerSummary} from "@/components/MakerSummary";import {QlooPanel} from "@/components/QlooLayer";import {useNotices} from "@/lib/useNotices";
-type Maker={maker_id:string;name:string;type:string;city?:string;country?:string;is_sample?:boolean;verification_status?:string;reasons?:string[];basis?:string};
-function Matching({id,w}:{id:string;w:Wish}){const notices=useNotices();const [matches,setMatches]=useState<Maker[]>([]),[message,setMessage]=useState(""),[requests,setRequests]=useState<unknown>(null),[chosen,setChosen]=useState(""),[msg,setMsg]=useState(""),[contact,setContact]=useState("");const refresh=async()=>setRequests(await getRequests(id,w.id));return <div className="mt-4 space-y-4"><Action label="Find Wish Makers" task={()=>matchWish(id,w.id)} onDone={v=>{const r=v as {matches?:Maker[];message?:string};setMatches(r.matches??[]);setMessage(r.message??"")}}/>{message&&<p>{message}</p>}{matches.map(m=><Card key={m.maker_id}><MakerSummary m={m} notices={notices}/><Btn quiet onClick={()=>setChosen(chosen===m.maker_id?"":m.maker_id)}>Ask this Wish Maker</Btn>{chosen===m.maker_id&&<div className="mt-3 space-y-3"><textarea className="w-full rounded-xl border p-3" aria-label="Message to maker" value={msg} onChange={e=>setMsg(e.target.value)} placeholder="A short, respectful request"/><input className="w-full rounded-xl border p-3" aria-label="Optional family contact" value={contact} onChange={e=>setContact(e.target.value)} placeholder="Optional way to reach you"/><Action label="Send request" task={()=>sendRequest(id,w.id,{maker_id:m.maker_id,message:msg,contact:contact||undefined})} onDone={()=>{setChosen("");refresh()}}/></div>}</Card>)}<Action label="View request statuses" task={refresh}/>{requests!==null&&<TextList value={requests}/>}</div>}
-export default function Wishes(){const {id}=useParams<{id:string}>();const {data,error,busy,reload}=useLoad<Wish[]>(personPath(id,"wishes"));return <Page id={id} title="Wishes & Wish Makers">{busy?<Wait/>:error?<ErrorBox message={error} onRetry={reload}/>:!data?.length?<Card>No wishes yet. Gather their story first.</Card>:<div className="space-y-8"><QlooPanel showStrip={false}/>{data.map((w,i)=><section key={w.id}><WishCard wish={w} i={i}/><Matching id={id} w={w}/></section>)}</div>}</Page>}
+import { useParams } from "next/navigation";
+import { personPath } from "@/lib/api";
+import type { Wish } from "@/lib/types";
+import { WishCard } from "@/components/story";
+import { Page, useLoad, Wait } from "@/components/Extra";
+import { Card, ErrorBox } from "@/components/ui";
+import { QlooPanel } from "@/components/QlooLayer";
+import { WishRequests } from "@/components/WishRequests";
+
+export default function Wishes() {
+  const { id } = useParams<{ id: string }>();
+  const { data, error, busy, reload } = useLoad<Wish[]>(personPath(id, "wishes"));
+  return <Page id={id} title="Wishes & Wish Makers">{busy ? <Wait /> : error ? <ErrorBox message={error} onRetry={reload} /> : !data?.length ? <Card>No wishes yet. Gather their story first.</Card> : <div className="space-y-8"><QlooPanel showStrip={false} />{data.map((w, i) => <section key={w.id}><WishCard wish={w} i={i} /><WishRequests id={id} wish={w} /></section>)}</div>}</Page>;
+}

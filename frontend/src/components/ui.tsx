@@ -24,7 +24,7 @@ export function Btn({ href, onClick, children, quiet, disabled }: { href?: strin
   const c = `inline-block rounded-full px-6 py-3 text-base font-medium transition ${quiet ? "border border-ivory/35 text-ivory hover:border-gold hover:bg-ivory/10" : "bg-gold !text-[#10142f] shadow-[0_0_28px_rgba(244,201,112,.18)] hover:bg-[#ffe09a]"} ${disabled ? "pointer-events-none opacity-40" : ""}`;
   return href ? <Link href={href} className={c}>{children}</Link> : <button onClick={onClick} disabled={disabled} className={c}>{children}</button>;
 }
-export const Card = ({ children, className = "" }: { children: ReactNode; className?: string }) => <div className={`glass rounded-3xl p-6 text-ivory ${className}`}>{children}</div>;
+export const Card = ({ children, className = "", ...rest }: { children: ReactNode; className?: string; [k: `data-${string}`]: string | boolean | undefined }) => <div {...rest} className={`glass rounded-3xl p-6 text-ivory ${className}`}>{children}</div>;
 export function Gathering({ slow, title = "Gathering their story…" }: { slow: boolean; title?: string }) {
   return (
     <div role="status" className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-navy/95 px-6 text-center text-ivory">
