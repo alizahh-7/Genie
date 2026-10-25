@@ -8,6 +8,7 @@ import { QlooPanel } from "@/components/QlooLayer";
 import { deriveCounters, qlooTagNames } from "@/lib/qloo";
 import { agentLog, agentRun, deletePerson, getPerson, getPortrait, getWishes } from "@/lib/api";
 import { useTask } from "@/lib/useTask";
+import { recompileQuietly } from "@/lib/bookSync";
 import { PERSON_EXPIRED_CODE } from "@/lib/errors";
 import type { AgentLog, Fav, Person, PortraitItem, Wish } from "@/lib/types";
 export default function PersonPage() {
@@ -30,7 +31,7 @@ export default function PersonPage() {
   const known = useMemo(() => qlooTagNames(items), [items]);
   useEffect(() => { load(); }, [load]);
   const openEditor = () => { setFavs(items.filter(i => i.source_label === "told" || i.source_label === "reacted").map(i => ({ domain: i.domain, name: i.name }))); setEditing(true); };
-  const rerun = () => t.run(async () => { await agentRun(id, favs); await fetchAll(); setEditing(false); });
+  const rerun = () => t.run(async () => { await agentRun(id, favs); await fetchAll(); setEditing(false); void recompileQuietly(id); });
   const remove = async () => {
     if (!confirm("Delete everything? This removes the portrait, wishes, Wish Circle answers, matches, and Wish Book, and cannot be undone.")) return;
     const ok = await t.run(() => deletePerson(id).then(() => true)); if (ok) router.push("/");
@@ -53,7 +54,7 @@ export default function PersonPage() {
       </header>
       {t.error && <ErrorBox message={t.error} />}
       <nav aria-label="Their story" className="mb-9 flex flex-wrap gap-2 text-sm">{[
-        ["Wishes & makers","wishes"],["Invite family","circle"],["Reaction mode","reaction"],["Bedside kit","bedside-kit"],["Compare","compare"],["Wish Book","wish-book"]
+        ["Wishes & makers","wishes"],["Invite family","circle"],["Reaction mode","reaction"],["Bedside kit","bedside-kit"],["Compare","compare"],["Taste Map","taste-map"],["Wish Book","wish-book"]
       ].map(([label,path]) => <Btn key={path} quiet href={`/person/${id}/${path}`}>{label}</Btn>)}</nav>
       <section aria-labelledby="portrait">
         <h2 id="portrait" className="mb-5 text-4xl">Taste Portrait</h2>

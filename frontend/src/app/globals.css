@@ -22,3 +22,15 @@ input,textarea,select{color:var(--ink)} ::selection{background:#f4c970;color:#10
 .warm-glow{background:radial-gradient(120% 90% at 20% 0%,rgba(244,201,112,.18),transparent 60%),linear-gradient(135deg,rgba(255,255,255,.14),rgba(255,255,255,.05));border:1px solid rgba(244,201,112,.4);box-shadow:0 0 60px rgba(244,201,112,.1),0 18px 60px rgba(2,3,20,.25)}
 .muted-card{background:rgba(255,255,255,.04);border:1px solid rgba(245,239,227,.14)}
 @media (prefers-reduced-motion:reduce){.drift-slow{animation:none}.qloo-glow{transition:none}}
+/* Wish Book: A4 print. Navigation, buttons and controls are hidden; sections avoid splitting across pages. */
+@page{size:A4;margin:16mm}
+@media print{
+  html,body{background:#fff!important;color:#201b31!important}
+  .noprint,nav,button,select,details>summary,[data-qloo-toggle]{display:none!important}
+  [data-wishbook]{max-width:none!important;margin:0!important;padding:0!important;border-radius:0!important;background:#fff!important;box-shadow:none!important;border:0!important;overflow:visible!important}
+  .book-cover{break-after:page;page-break-after:always;padding-top:30mm}
+  .book-keep{break-inside:avoid;page-break-inside:avoid}
+  .book-section>p:first-child{break-after:avoid;page-break-after:avoid}
+  .book-section{orphans:3;widows:3}
+  a{color:inherit;text-decoration:none}
+}
