@@ -4,6 +4,7 @@ import Wake from "@/components/Wake";
 import GenieDreamBackground from "@/components/GenieDreamBackground";
 import DemoCards from "@/components/DemoCards";
 import ServiceStatus from "@/components/ServiceStatus";
+import TryYourOwn from "@/components/TryYourOwn";
 import { CAPABILITIES, PRIVACY_POINTS, PROCESS } from "@/lib/home";
 
 const H2 = "text-4xl sm:text-5xl";
@@ -37,6 +38,8 @@ export default function Landing() {
           <p className="rise mt-6 text-sm text-ivory/65" style={{ animationDelay: "540ms" }}>No account needed. Skip anything, and delete everything at any time.</p>
           <div className="rise mt-5" style={{ animationDelay: "600ms" }}><ServiceStatus /></div>
         </section>
+
+        <TryYourOwn />
 
         {/* 3. What Genie actually does */}
         <Section id="does" title="What Genie actually does" lead="These are working parts of the product. Some open right now. Others live inside a story you create, and each card says which.">

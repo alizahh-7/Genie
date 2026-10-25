@@ -5,6 +5,7 @@ import { confidenceWord, isNotInQloo, matchedVia, modeNote, seconds, shownTags, 
 import { qlooRowDisplay } from "@/lib/qlooLog";
 import { isDiscoveryKind, isQlooDiscovery, isQlooResolved, isQlooTag } from "@/lib/qloo";
 import { QlooBadge, TagChip, useGlow } from "@/components/QlooLayer";
+import { QlooReceipt } from "@/components/QlooReceipt";
 import type { AgentLog, PortraitItem, Wish } from "@/lib/types";
 const chip = (s: string) => (s === "told" ? "bg-sage/25 text-sagedeep" : s === "reacted" ? "bg-navy/10 text-navy" : "bg-sand text-navy/80");
 export function PortraitCard({ item, i }: { item: PortraitItem; i: number }) {
@@ -40,6 +41,7 @@ export function WishCard({ wish, i, known }: { wish: Wish; i: number; known?: Re
       {wish.why && <p className="mt-3 border-l-2 border-sage pl-4 text-navy/80">{wish.why}</p>}
       {(wish.basis === "likely" || wish.kind === "discovery") && <p className="mt-3 text-sm text-navy/60">A guess. The family decides.</p>}
       {shown.length > 0 && <div className="mt-4 flex flex-wrap gap-2">{shown.map(t => <TagChip key={t.name} name={t.name} qloo={isQlooTag(t, known)} />)}</div>}
+      <QlooReceipt wish={wish} known={known} />
     </article>
   );
 }

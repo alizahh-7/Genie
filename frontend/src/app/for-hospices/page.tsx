@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import HospiceWalkthrough from "@/components/HospiceWalkthrough";
 import { Shell, Card, Btn, ErrorBox } from "@/components/ui";
 import { applyOrg } from "@/lib/api";
 import { errorDetail, ApiError } from "@/lib/errors";
@@ -39,6 +40,7 @@ export default function ForHospices() {
         <h1 className="text-5xl sm:text-6xl">Help a wish happen, without adding to your workload</h1>
         <p className="mx-auto mt-5 max-w-2xl text-lg text-ivory/75">Genie helps a family put what someone loved into words, then suggests people who might make a small wish real. Your team coordinates it from one calm dashboard.</p>
       </header>
+      <HospiceWalkthrough />
       <div className="grid gap-6 lg:grid-cols-2">
         <div className="space-y-5">
           <Card><h2 className="text-3xl">A coordination service</h2><ul className="mt-3 list-disc space-y-2 pl-5 text-ivory/80"><li>Your staff open a story for someone, with their or their family&apos;s consent.</li><li>The family adds memories. Genie suggests wishes and Wish Makers who could help.</li><li>You see where each wish stands: suggested, asked, accepted or done.</li></ul></Card>
