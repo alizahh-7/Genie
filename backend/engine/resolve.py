@@ -39,8 +39,17 @@ def _kind(t):
     return t.split(":")[-1]
 
 
+def _note(client, query, domain):
+    """Tell the real client which item the next call is about, so its log row gets a friendly label.
+    Test doubles without note() are simply skipped."""
+    n = getattr(client, "note", None)
+    if callable(n):
+        n((query, domain))
+
+
 def _search(client, query, domain):
     """Returns (hit, kind, err). hit is None if nothing scored >= ACCEPT. err is a transport error or None."""
+    _note(client, query, domain)
     if domain == "food":
         data, err = client.get("/v2/tags", {"filter.query": query}, step="resolve")
         if data is None:
@@ -52,6 +61,7 @@ def _search(client, query, domain):
                 best = (s, h)
         return (best[1], "tag", None) if best else (None, "tag", None)
     for t in TYPES.get(domain, []):
+        _note(client, query, domain)
         data, err = client.get("/search", {"query": query, "types": t, "take": 5}, step="resolve")
         if data is None:
             return None, t, err

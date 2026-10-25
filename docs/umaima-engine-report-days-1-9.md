@@ -225,7 +225,7 @@ Total offline checks: 213 in the engine (167 + 46), plus 8 for the cache store.
 - Reaction Mode: the engine does not remember the `tried` list, and the refresh adds artists only. The interface must provide the Stop button.
 - The tag filter drops any tag whose name contains a listed word, so a genre with such a word in its name loses that tag.
 - The Wish Circle answer keys are `music`, `food`, `place`, `film` and `joy`. The engine maps the first four. `joy` ("what made them light up") is read only when the LLM is on.
-- Parking lot (not built, per the feature freeze): Clue Box, a `discovered` field on discovery wishes, cross-domain additions in Reaction Mode, a cap on how many tags the interface shows per item.
+- Parking lot (not built, per the feature freeze): Clue Box, cross-domain additions in Reaction Mode, a cap on how many tags the interface shows per item.
 - Screens for the "what Genie did" panel, Reaction Mode, the comparison and the Bedside Kit, and the first live deploy, belong to the frontend and backend owners.
 - The judge test has only run against a local server. The deployed site and the frontend are still to be run through the same twelve people.
 - A new person is limited to 30 per hour per address, so the judge test should not be run more than twice an hour.
@@ -237,6 +237,21 @@ Total offline checks: 213 in the engine (167 + 46), plus 8 for the cache store.
 | 8 | Done (see above). Remaining: the three pending checks in section 3 (rows 33 to 35), then the commit. |
 | 9 | Done on the engine side: judge test and fixes. Remaining: Save as PDF check, deployed run, browser click-through, team read-aloud. |
 | 10 | Final bug fixes with the team, demo video if there is time |
+
+### 7a. After Day 9: two small contract changes (25 Oct)
+
+Both were asked for by the backend owner and are additive, so nothing existing changes.
+
+| Change | Where | Detail |
+|---|---|---|
+| `discovered` on discovery wishes | `engine/wishes.py` | Each discovery wish now carries `"discovered": "<artist name>"`, the same name that is in its title. Other wishes do not carry the key at all. The backend stored it from the "why" sentence before; now it reads it directly. |
+| `label` on every `qloo_log` row | `engine/qloo_client.py`, `engine/resolve.py` | A row is now `{step, request, status, ms, label}`. The label is one calm sentence: "Looked up Charminar as a place. Remembered." (cached), "... Found it." (fresh), "... Nothing found, so Genie tried a nearby way.", or "... Qloo was slow or busy, so Genie carried on without it." for any error, so no raw status reaches a family. The other steps read "Asked Qloo what people of their era and region love", "... with similar taste also love", "... who lit up at these also love". The item name is already inside `request`, so nothing new is exposed. |
+
+How: `QlooClient.note((name, domain))` tells the client what the next call is about. It is used once and cleared. The resolver calls it through a helper that skips clients without `note()`, so every existing test double keeps working. The first version passed an extra argument to `get()` and broke 13 offline checks, which is why it was changed.
+
+Tests: new `engine/test_labels.py` (14 checks), two new checks in `test_wishes.py`. All offline suites pass (43, 37, 17, 34, 21, 17, day 8 all, 14, cache store 8 of 8).
+
+Still to do on a machine with the keys: `prewarm_run.py` (needs `QLOO_API_KEY`) and one run of both demo people after the next deploy. `copy_audit.py` ran without keys: 119 lines, 0 flagged, but that is the template copy only, so run it again with the keys for the real read-aloud file.
 
 
 Open questions for the team are listed in `docs/engine-contract.md` ("Status of the open questions"). Since Day 8 the Wish Circle answer keys are answered (see above).

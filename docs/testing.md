@@ -13,6 +13,8 @@ python engine\test_agent.py
 python engine\test_reaction.py
 python engine\test_sidebyside.py
 python engine\test_kit.py
+python engine\test_day8.py
+python engine\test_labels.py
 ```
 
 Checks against the real services (needs `QLOO_API_KEY`, and `LLM_*` for some):

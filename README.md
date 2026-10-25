@@ -47,6 +47,7 @@ python engine\test_reaction.py
 python engine\test_sidebyside.py
 python engine\test_kit.py
 python engine\test_day8.py
+python engine\test_labels.py
 python test_cache_store.py
 
 Checks against the real Qloo API: `python engine\live_checks.py` (flags in `docs/Engine.md`), `python engine\live_odd.py` (odd inputs and outages) and `python engine\prewarm_run.py` (demo people, run twice, the second pass must be fast).
@@ -56,7 +57,7 @@ The whole path through the real API (create a person, run the agent, compare, co
 ## Docs
 - `docs/Engine.md` how the engine works
 - `docs/engine-contract.md` the exact input and output shapes
-- `docs/umaima-engine-report-days-1-8.md` the engine work report
+- `docs/umaima-engine-report-days-1-9.md` the engine work report
 - `docs/coverage-report.md` the Qloo coverage test
 
 ## Privacy

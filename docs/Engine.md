@@ -47,6 +47,7 @@ Genie turns "what a person loved" into a Taste Portrait and then into wishes. Th
 | `test_reaction.py` | 34 offline checks for Reaction Mode. |
 | `test_sidebyside.py` | 21 offline checks for the comparison: fairness, tone filter, evidence, failures. |
 | `test_kit.py` | 17 offline checks for the Bedside Kit: order, wording rules, empty and junk input. |
+| `test_labels.py` | 14 offline checks for the friendly `label` on each Qloo call row (cached, found, not found, errors, bad input, one-shot `note()`). |
 | `test_day8.py` | 46 offline checks for the Day 8 fixes (cap, heavy-theme skip, tag filters, no waiting on stuck calls, circuit breaker, step wording, comparison caching). |
 | `live_checks.py` | Checks against real Qloo and the real LLM: `--level4`, `--extra`, `--l6`, `--llm`, `--wishes`, `--agent`, `--reaction`, `--compare`, `--kit`. |
 | `test_engine.py` | Ladder checks and the "Nani" demo portrait. |
@@ -88,6 +89,7 @@ python engine\test_reaction.py
 python engine\test_sidebyside.py
 python engine\test_kit.py
 python engine\test_day8.py
+python engine\test_labels.py
 python test_cache_store.py
 python engine\live_checks.py # or --level4 / --extra / --l6 / --llm / --wishes / --agent / --reaction / --compare / --kit
 python engine\live_odd.py # odd inputs against real Qloo (spends LLM quota: do not run it near a demo)
@@ -108,7 +110,8 @@ result = run_agent(person, inputs)
 # result["items"]    -> POST /persons/{id}/portrait
 # result["wishes"]   -> POST /persons/{id}/wishes
 # result["steps"]    -> the "what Genie did" panel
-# result["qloo_log"] -> the live Qloo call panel
+# result["qloo_log"] -> the live Qloo call panel; each row is {step, request, status, ms, label}
+# `label` is one calm sentence, e.g. "Looked up Charminar as a place. Remembered."
 # result["timings"]  -> {"portrait_ms", "wishes_ms", "total_ms"}
 
 cards = pick_reaction_cards(result["items"], tried=[])["cards"]            # what to show next

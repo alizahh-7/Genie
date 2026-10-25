@@ -64,6 +64,8 @@ check("no banned wording", not any(W.BANNED.search(w["title"] + w["description"]
 check("titles start with a capital", all(w["title"][0].isupper() for w in ws))
 check("discovery wish excludes names already in portrait",
       any(w["kind"] == "discovery" and "Talat Mahmood" in w["title"] for w in ws))
+check("discovery wish carries the discovered item name", all(w.get("discovered") and w["discovered"] in w["title"] for w in ws if w["kind"] == "discovery"))
+check("only discovery wishes carry discovered", all("discovered" not in w for w in ws if w["kind"] != "discovery"))
 check("discovery is labelled likely", all(w["basis"] == "likely" for w in ws if w["kind"] == "discovery"))
 check("told wishes labelled told", all(w["basis"] == "told" for w in ws if w["kind"] != "discovery"))
 check("wish tags carry names", any(w["tags"] and "name" in w["tags"][0] for w in ws))

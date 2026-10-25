@@ -88,15 +88,23 @@ class QlooClient:
         self.timeout = timeout
         self.retries = retries
         self.log = []  # becomes qloo_log in the contract
+        self._what = None
 
-    def _log(self, step, label, status, t0):
+    def note(self, what):
+        """Remember (name, domain) for the next get() only; used just for the log label."""
+        self._what = what
+
+    def _log(self, step, label, status, t0, what=None):
         self.log.append({"step": step, "request": label, "status": status,
-                         "ms": int((time.time() - t0) * 1000)})
+                         "ms": int((time.time() - t0) * 1000),
+                         "label": friendly_label(step, status, what)})
 
     def get(self, path, params, step="call"):
         """Returns (data, error). error is None, 'no results', 'timeout', 'network', 'HTTP 5xx', 'no key'.
         Successful answers and 404s are cached on disk forever (demo safety).
+        Call note((name, domain)) first to give the log row a friendly label for that item.
         After BREAKER_FAILS timeouts/network errors in a row, uncached calls fail fast for BREAKER_SECONDS."""
+        what, self._what = self._what, None
         shown = {k: v for k, v in params.items()
                  if k in ("query", "filter.query", "filter.type", "types")}
         label = f"{path} {shown}"
@@ -106,12 +114,12 @@ class QlooClient:
         if f.exists():
             try:
                 data = json.loads(f.read_text(encoding="utf-8"))
-                self._log(step, label, "cached", t0)
+                self._log(step, label, "cached", t0, what)
                 return data, None
             except Exception:
                 pass
         if not self.key:
-            self._log(step, label, "no key", t0)
+            self._log(step, label, "no key", t0, what)
             return None, "no key"
         last = "error"
         for attempt in range(self.retries + 1):
@@ -133,11 +141,11 @@ class QlooClient:
                 if r.status_code == 200:
                     data = r.json()
                     f.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
-                    self._log(step, label, "ok", t0)
+                    self._log(step, label, "ok", t0, what)
                     return data, None
                 if r.status_code == 404:
                     f.write_text("{}", encoding="utf-8")
-                    self._log(step, label, "no results", t0)
+                    self._log(step, label, "no results", t0, what)
                     return {}, "no results"
                 last = f"HTTP {r.status_code}"
                 if r.status_code in (400, 401, 403):
@@ -145,8 +153,38 @@ class QlooClient:
             if _breaker_open():
                 break
             time.sleep(0.5 * (attempt + 1))
-        self._log(step, label, last, t0)
+        self._log(step, label, last, t0, what)
         return None, last
+
+
+# ---------- friendly labels for the Qloo call log ----------
+
+_DOMAIN_NOUN = {"music": "a song or artist", "food": "a dish", "place": "a place", "film": "a film or show"}
+_STATUS_TAIL = {
+    "ok": "Found it.",
+    "cached": "Remembered.",
+    "no results": "Nothing found, so Genie tried a nearby way.",
+}
+_STEP_TEXT = {
+    "era_place": "Asked Qloo what people of their era and region love",
+    "wish_discover": "Asked Qloo what people with similar taste also love",
+    "reaction_expand": "Asked Qloo what else people who lit up at these also love",
+}
+
+
+def friendly_label(step, status, what=None):
+    """One calm sentence for a qloo_log row, e.g. 'Looked up Charminar as a place. Remembered.'
+    Uses only the item name (already part of the request) and the status. Never raises."""
+    try:
+        if step == "resolve" and what:
+            name, domain = what
+            head = f"Looked up {name} as {_DOMAIN_NOUN.get(domain, 'an item')}"
+        else:
+            head = _STEP_TEXT.get(step, "Asked Qloo")
+        tail = _STATUS_TAIL.get(status, "Qloo was slow or busy, so Genie carried on without it.")
+        return f"{head}. {tail}"
+    except Exception:
+        return "Asked Qloo."
 
 
 # ---------- helpers shared by resolve.py and portrait.py ----------

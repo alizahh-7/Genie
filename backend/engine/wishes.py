@@ -102,10 +102,13 @@ def _cands(by, basis, person, discoveries):
     region = (person.get("region") or "").strip()
     out = []
 
-    def add(prio, kind, title, desc, mode, maker, srcs, why=None, label=None, affinity=None):
-        out.append({"_p": prio, "title": title, "description": desc, "mode": mode,
+    def add(prio, kind, title, desc, mode, maker, srcs, why=None, label=None, affinity=None, discovered=None):
+        w = {"_p": prio, "title": title, "description": desc, "mode": mode,
                     "source_items": [s["name"] for s in srcs], "kind": kind, "maker_type": maker,
-                    "tags": _tags_for(srcs), "basis": label or basis, "why": why, "affinity": affinity})
+                    "tags": _tags_for(srcs), "basis": label or basis, "why": why, "affinity": affinity}
+        if discovered:  # only discovery wishes carry it
+            w["discovered"] = discovered
+        out.append(w)
 
     music, food, place = by["music"][:3], by["food"][:1], by["place"][:1]
     film = by["film"][:1] if basis == "told" else []
@@ -170,7 +173,7 @@ def _cands(by, basis, person, discoveries):
             "This is a guess from Qloo's taste links, so the family decides.",
             "remote", "musician", srcs,
             why=f"Qloo's taste graph links {anchors} with {d['name']}{score}.",
-            label="likely", affinity=d["affinity"])
+            label="likely", affinity=d["affinity"], discovered=d["name"])
     return out
 
 
