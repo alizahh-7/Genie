@@ -1,8 +1,8 @@
 # Genie engine: documentation
 
-**Owner:** Umaima. **Folder:** `backend/engine/`. **Status:** Days 1-8 complete on the engine side: resolve, fallback ladder, portrait builder, wish generation, one end-to-end entry point with visible steps (`run_agent`), Reaction Mode logic, the side-by-side comparison with a general AI, the Bedside Kit, and the Day 8 polish (private cache pre-warm, a second demo person, odd-input and outage checks, a Qloo circuit breaker, tone fixes, a copy audit). **Feature freeze:** from here on the engine only gets bug fixes, polish, copy and tests. Day 9 is the judge test.
+**Owner:** Umaima. **Folder:** `backend/engine/`. **Status:** Days 1-9 complete on the engine side, plus two small contract changes on 25 Oct (`label` on every Qloo call row, `discovered` on discovery wishes). Day 1-8 work: resolve, fallback ladder, portrait builder, wish generation, one end-to-end entry point with visible steps (`run_agent`), Reaction Mode logic, the side-by-side comparison with a general AI, the Bedside Kit, and the Day 8 polish (private cache pre-warm, a second demo person, odd-input and outage checks, a Qloo circuit breaker, tone fixes, a copy audit). **Feature freeze:** from here on the engine only gets bug fixes, polish, copy and tests. Day 9 was the judge test (twelve fictional people, no failed checks on a local server).
 
-The engine is plain Python. It talks to Qloo (and optionally an LLM) and returns data. **It never touches the database**: the backend calls it and stores what it returns. See `docs/engine-contract.md` (v1.5) for the exact input/output shapes (Day 8 changed no shapes), and `docs/umaima-engine-report-days-1-8.md` for the full work report.
+The engine is plain Python. It talks to Qloo (and optionally an LLM) and returns data. **It never touches the database**: the backend calls it and stores what it returns. See `docs/engine-contract.md` (v1.7) for the exact input/output shapes (Day 8 changed no shapes; v1.7 added `label` and `discovered`), and `docs/umaima-engine-report-days-1-9.md` for the full work report.
 
 ---
 

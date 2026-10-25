@@ -236,7 +236,7 @@ Total offline checks: 213 in the engine (167 + 46), plus 8 for the cache store.
 |---|---|
 | 8 | Done (see above). Remaining: the three pending checks in section 3 (rows 33 to 35), then the commit. |
 | 9 | Done on the engine side: judge test and fixes. Remaining: Save as PDF check, deployed run, browser click-through, team read-aloud. |
-| 10 | Final bug fixes with the team, demo video if there is time |
+| 10 | Final bug fixes with the team, demo video if there is time. 25 Oct: contract v1.7, warmer demo memories (see 7a). |
 
 ### 7a. After Day 9: two small contract changes (25 Oct)
 
@@ -251,7 +251,9 @@ How: `QlooClient.note((name, domain))` tells the client what the next call is ab
 
 Tests: new `engine/test_labels.py` (14 checks), two new checks in `test_wishes.py`. All offline suites pass (43, 37, 17, 34, 21, 17, day 8 all, 14, cache store 8 of 8).
 
-Still to do on a machine with the keys: `prewarm_run.py` (needs `QLOO_API_KEY`) and one run of both demo people after the next deploy. `copy_audit.py` ran without keys: 119 lines, 0 flagged, but that is the template copy only, so run it again with the keys for the real read-aloud file.
+Run with the keys on 25 Oct: `prewarm_run.py` PASS (Nani and Jun OK, no Qloo errors, second pass 31 ms), and `copy_audit.py` wrote 139 lines with 0 flagged, which is the real read-aloud file. Still to do after the next deploy: run both demo people once through `/demo/start` and check that `GET /persons/{id}/agent-log` rows carry `label` (the stored demo log was made before the change and may need regenerating).
+
+Also on 25 Oct: `docs/engine-contract.md` moved to v1.7. It now says `label` is always present, `discovered` exists only on discovery wishes, `qloo_log.request` holds the searched name (it was wrongly described as redacted), `based_on` is a whole number, and the route list and rate limits are corrected. `backend/demo_memories.sql` was rewritten: three contributors for each demo person (Nani: Ayesha, Imran, Farhan. Sana: Minho, Jiwoo, Dahye) covering music, food, place, film and joy, with no lyrics or dialogue.
 
 
 Open questions for the team are listed in `docs/engine-contract.md` ("Status of the open questions"). Since Day 8 the Wish Circle answer keys are answered (see above).

@@ -7,6 +7,7 @@ Genie is an AI agent that learns who someone was through what they loved, sugges
 ## Structure
 - `backend/` FastAPI API, Supabase (Postgres) database, sample Wish Makers
 - `backend/engine/` the agent and Qloo engine (see `docs/Engine.md` and `docs/engine-contract.md`)
+- `frontend/` Next.js app (see `frontend/README.md`)
 - `docs/` project documents
 
 ## Run the backend locally
@@ -18,6 +19,15 @@ Genie is an AI agent that learns who someone was through what they loved, sugges
 6. `python engine_cache_store.py init` (once: creates the private table that keeps the Qloo cache between deploys)
 7. `python seed.py` then `uvicorn main:app --reload`
 8. Open http://127.0.0.1:8000/docs
+
+## Run the frontend locally
+1. `cd frontend`
+2. `Copy-Item .env.example .env.local` (PowerShell) or `cp .env.example .env.local`. `NEXT_PUBLIC_API_URL` points to the backend: the deployed API, or `http://127.0.0.1:8000` for a local one.
+3. `npm install`
+4. `npm run dev`, then open http://localhost:3000
+5. Checks: `npm run typecheck`, `npm test`, `npm run build`
+
+The free backend host can need up to 90 seconds to wake after a quiet period. Deployment steps for both halves are in `docs/deployment.md`.
 
 ## The engine (how Genie uses Qloo)
 The engine in `backend/engine/` is plain Python. It never touches the database: the backend calls it and stores what it returns.
@@ -36,7 +46,7 @@ Qloo's terms forbid storing its response data publicly, so the cache (`backend/e
 Try the engine without a stored person:
 - `POST /agent/run` runs the whole agent for one fictional person and stores nothing.
 - `POST /agent/compare`, `/agent/reaction-cards`, `/agent/reactions` and `/agent/bedside-kit` power the other screens.
-- Two fictional demo people, Nani and Jun, are in `backend/engine/personas.py`.
+- Two fictional demo people for engine tests, Nani and Jun, are in `backend/engine/personas.py`. The live site's demo people (`POST /demo/start`, personas 0 and 1) are Nani and Sana, with their family memories in `backend/demo_memories.sql`.
 
 ## Tests
 Run from `backend/`. The offline suites need no network and no keys.
@@ -50,6 +60,8 @@ python engine\test_day8.py
 python engine\test_labels.py
 python test_cache_store.py
 
+Frontend, from `frontend/`: `npm test` and `npm run typecheck`.
+
 Checks against the real Qloo API: `python engine\live_checks.py` (flags in `docs/Engine.md`), `python engine\live_odd.py` (odd inputs and outages) and `python engine\prewarm_run.py` (demo people, run twice, the second pass must be fast).
 
 The whole path through the real API (create a person, run the agent, compare, compile and share a Wish Book, revoke, delete) for ten varied fictional people: python judge_test.py (server running; add --extra for two odd ones).
@@ -59,6 +71,10 @@ The whole path through the real API (create a person, run the agent, compare, co
 - `docs/engine-contract.md` the exact input and output shapes
 - `docs/umaima-engine-report-days-1-9.md` the engine work report
 - `docs/coverage-report.md` the Qloo coverage test
+- `docs/devpost-technical-notes.md` how Genie uses Qloo, with the evidence
+- `docs/deployment.md` and `docs/testing.md` how to deploy and test
+- `docs/privacy.md` what data is collected and how it is deleted
+- `docs/detailed_backend_report_zunairah.md` the backend report
 
 ## Privacy
 No accounts. Minimal data (first name, birth year, region, favorites). Everything for a person can be deleted with one call, and demo data expires automatically. Secrets live in environment variables only.
