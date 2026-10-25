@@ -1,4 +1,4 @@
-# Genie engine contract (v1.6, updated Oct 23)
+# Genie engine contract (v1.7, updated Oct 25)
 
 Engine owner: Umaima. Backend owner: Zunairah.
 
@@ -23,7 +23,7 @@ The engine never touches the database. It returns data and the backend stores it
 - `resolution_level` is the fallback ladder level: 1 exact, 2 alternate spelling, 3 parent (artist/cuisine/city), 4 era-and-place, 5 not in Qloo, 6 API error or timeout.
 - Do not publish raw Qloo response data in the public repository. Keep provider-returned entity and tag identifiers, result names, tag lists, response payloads, and match scores out of public documentation, examples, fixtures, logs, and seed files. Use generic placeholders in examples. Keep any permitted provider data in the appropriate private runtime storage and follow Qloo's applicable terms.
 - **LLM polish:** call `generate_wishes` with `use_llm=False` unless `WISH_POLISH=1`. Only `run_agent` applies this rule for you.
-- Optional: each `qloo_log` row may carry a short friendly `label` ("Looked up <item> as a place. Remembered."). The frontend may show it instead of parsing the redacted request.
+- v1.7: every `qloo_log` row carries a short friendly `label` (for example "Looked up <item> as a place. Remembered."). The frontend shows it as written instead of parsing `request`. The label never shows a raw error: any failure reads "Qloo was slow or busy, so Genie carried on without it."
 
 ## Status of the open questions
 
@@ -45,7 +45,7 @@ The engine never touches the database. It returns data and the backend stores it
 10. `run_agent(person, inputs)` is the single call for building a portrait and wishes. Wish polishing by the LLM is off by default.
 11. Reaction Mode functions are available. The portrait item shape remains compatible with the existing backend storage.
 12. `side_by_side` and `generate_bedside_kit` are available as stateless functions.
-13. v1.6: wishes may carry `discovered` (the discovered item's name, discovery wishes only). The backend stores it and returns it on `GET /persons/{id}/wishes`.
+13. v1.6: wishes carry `discovered` (the discovered item's name, discovery wishes only). The backend stores it and returns it on `GET /persons/{id}/wishes`.
 14. v1.6: the backend adds `top_tags` (computed from `tags`, at most 5, genre and setting first) to `GET /persons/{id}/portrait`, and a plain-language `summary` to the responses of `portrait/build` and `wishes/generate`. These are backend fields, not engine output.
 
 ## 1. resolve(name, domain, hint=None)
@@ -108,12 +108,13 @@ Returns:
         }
     ],
     "qloo_log": [
-        {"step": "resolve", "request": "<redacted>", "status": "ok", "ms": 0}
+        {"step": "resolve", "request": "<endpoint and the name searched>", "status": "ok", "ms": 0, "label": "<one calm sentence>"}
     ]
 }
 ```
 - At most 30 items, and the 30 includes the level-4 guesses. If fewer than 3 resolve, up to 6 level-4 items (`source_label: "likely"`, confidence 0.3) are added. A level-4 guess with ageing or heavy tags is skipped.
 - Without the LLM, free-text circle answers are split into short names; segments with sentence words ("She sang along to Queen") are not turned into items.
+- `qloo_log.request` holds the endpoint and the favourite name that was searched (no other person details). Treat it as family data: do not publish it. `qloo_log.label` is always present (v1.7).
 - `qloo_log.status` is one of `ok`, `cached`, `no results`, `timeout`, `network`, `HTTP <code>`, `no key`.
 - Saving a portrait replaces the previous one, so rebuild with all items, not only the new ones.
 
@@ -136,8 +137,7 @@ Returns:
             "tags": [{"id": "<tag identifier>", "name": "<tag name>"}],
             "basis": "told",
             "why": None,
-            "affinity": None, 
-            "discovered": None 
+            "affinity": None
         }
     ],
     "follow_up": None,
@@ -155,7 +155,7 @@ Returns:
 - `follow_up` is a gentle question to show when the portrait has fewer than 3 usable items ("Is there a song or a place they loved?"), otherwise `null`.
 - No wish contains medical or clinical wording. If Qloo or the LLM is down, wishes are still returned, without the discovery wish.
 - Wording comes from fixed templates. The LLM may rewrite it only when polish is switched on, and each rewrite is checked; otherwise the template is kept.
-- Parked until after the freeze: `discovered` is the discovered item's name on discovery wishes, otherwise null. It is provider-derived, so keep actual values out of public examples. The backend stores it in `wish.discovered`.
+- Implemented in v1.7: `discovered` is the discovered item's name. Only discovery wishes carry the key; other wishes do not have it, and a missing key means null. It is provider-derived, so keep actual values out of public examples. The backend stores it in `wish.discovered`.
 
 ## 4. run_agent(person, inputs)
 
@@ -304,13 +304,14 @@ Returns:
     "small_changes": [{"text": "...", "because": "<portrait item>"}],
     "visitors": [{"text": "...", "because": "general"}],
     "note": "Genie is not a medical service. For questions about care, please speak with the care team.",
-    "based_on": None
+    "based_on": 1
 }
 ```
 
 - `tracks` are names to search for in a music app (artists or the song names the family gave), not recordings. Order: reacted, then told, then at most 3 guesses (`basis: "likely"`, label "A guess, from their era and region"). Up to 10, no repeats. `empty_note` is set when there are none.
 - `small_changes` and `visitors` have at most 6 entries each. `because` is the portrait item the line came from, or `"general"`. A food suggestion always includes "please ask the care team before bringing any food or drink".
 - No medical or clinical wording and no exclamation marks outside `note`. Show `note` on the screen as written.
+- `based_on` is a whole number: how many usable portrait items the kit was built from (0 for an empty portrait).
 - With an empty or junk portrait it still returns a kit with the general suggestions. It never raises.
 
 ## 8. How the backend should call the engine
@@ -318,8 +319,8 @@ Returns:
 - Module path: `backend/engine/` (import `from engine import ...` with `backend/` on the path). `backend/requirements.txt` must include `requests` and `python-dotenv` and `psycopg`.
 - Typical flow: collect `quick_facts` and `circle_answers` (from `GET /persons/{id}/circle-responses`), call `run_agent` from a worker thread with your own timeout, save `items` with `POST /persons/{id}/portrait`, save `wishes` with `POST /persons/{id}/wishes`, then run matching.
 - Return `steps`, `qloo_log` and `timings` to the frontend for the "what Genie did" panel and the live Qloo call panel. They do not need to be stored.
-- **Stateless routes** in `backend/routers/agent_demo.py` (nothing stored): `POST /agent/run`, `POST /agent/reaction-cards`, `POST /agent/reactions`, `POST /agent/compare` (same body as `/agent/run`), and `POST /agent/bedside-kit` (body: `person` and `items`). These power the "try it yourself" demo, Reaction Mode, the comparison screen and the Bedside Kit. The person-bound routes under `/persons/{id}/...` are in `routers/agent.py`. Keep only one route per path.
-- Per-IP rate limits cover `/agent/*` and the stored agent routes: about 10 per minute, and about 5 per minute for compare. Every call spends Qloo quota, and compare also spends an LLM call.
+- **Stateless routes** in `backend/routers/agent_demo.py` (nothing stored): `POST /agent/run`, `POST /agent/reaction-cards`, `POST /agent/reactions`, `POST /agent/compare` (same body as `/agent/run`), and `POST /agent/bedside-kit` (body: `person` and `items`). These power the "try it yourself" demo, Reaction Mode, the comparison screen and the Bedside Kit. The person-bound routes under `/persons/{id}/...` are in `routers/agent.py` (`portrait/build`, `wishes/generate`, `agent/run`, `GET agent-log`, the replay of what Genie did) and `routers/agent_screens.py` (`reaction/cards`, `reaction/apply`, `compare`, `bedside-kit`). Keep only one route per path.
+- Per-IP rate limits cover `/agent/*` and the stored agent routes: about 10 per minute, and about 5 per minute for compare. `reaction/cards` and `GET bedside-kit` are not limited, and `POST /persons` and `/demo/start` are limited to 30 per hour per address. Every call spends Qloo quota, and compare also spends an LLM call.
 - A private snapshot of the engine's cache is kept in the database (table engine_cache) and restored at start-up when ENGINE_CACHE_RESTORE=1. Uncached requests still take 3 to 6 seconds, so after each deploy run the demo people once (including `/agent/compare`).
 - Organisation cases (hospice portal) create a normal person with a 90-day expiry, so every route in this contract works for them unchanged. The engine needs no change for the organisation layer.
 
