@@ -21,3 +21,4 @@ frontend/tsconfig.tsbuildinfo
 genie-new/
 phase1-extracted/
 genie-verification-report.txt
+demo_memories.sql
