@@ -49,7 +49,6 @@ Families often hold different fragments of a person's life. Genie brings those f
 3. Inspect the portrait, wishes, source labels, Qloo receipt, Wish Network and Wish Book.
 4. Visit **How Genie uses Qloo** and the hospice walkthrough to see the intelligence and coordination layers.
 
-> ⚠️ Do not enter real people's private or medical information into this hackathon demo.
 
 ---
 
