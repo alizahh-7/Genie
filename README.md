@@ -1,206 +1,239 @@
-# Genie
+<div align="center">Genie ✨
+Everyone deserves to be known before they go.
+A Qloo-powered agentic platform for discovering meaningful last wishes and helping families, Wish Makers, and care organisations work towards making them happen.
 
-**Everyone deserves to be known before they go.**
+Built for the Qloo Agentic Hackathon — Agents, but with taste.
 
-Genie is an AI agent that learns who someone was through what they loved, suggests personal wishes only they would recognise, and finds the real people who can make those wishes happen. Its cultural intelligence comes from the **Qloo taste graph**. Built for the **Qloo Agentic Hackathon** ("Agents, but with taste").
+Explore the live demo · API documentation · Source code
+</div>Demo notice: Nani, Sana, and the sample Wish Makers are fictional. The organisation portal and matching workflows are implemented, but no real hospice partnership or real-world wish fulfilment is claimed. Genie is not a medical service. The free Render backend may take up to ~90 seconds to wake.
 
-| | |
-|---|---|
-| **Live demo** | `<PASTE FRONTEND URL HERE>` (Vercel) |
-| **API (backend)** | https://genie-ld8p.onrender.com (interactive docs at `/docs`) |
-| **Repository** | https://github.com/alizahh-7/Genie |
-| **License** | MIT (see `LICENSE`) |
+Why Genie?
+A final wish is not always a grand adventure. It might be hearing a childhood song again, tasting a familiar recipe, seeing photographs of a beloved place, or receiving a story from someone who understands what that place meant.
 
-> The free backend host can take up to 90 seconds to wake after a quiet period. If the first click is slow, wait; it is not broken.
+Families often hold different fragments of a person's life. Genie helps bring those fragments together, discovers relevant possibilities through Qloo's taste intelligence, and creates a pathway from memory → personal wish → potential human connection. It starts with what someone loved, not their condition.
+Experience at a glance
+Stage	What happens
+Start a story	Enter a first name or nickname, era/region/language, and a few favourites. No medical records required.
+Wish Circle	Friends and family add memories through a private, consent-based link without an account.
+Taste Portrait & Taste Map	Genie resolves favourites through Qloo entities/tags and builds a source-labelled portrait.
+Wish discovery	The agent suggests 3–5 personal wishes, including an explicitly labelled Qloo-based discovery where available.
+Wish Network	Wishes are matched with potential musicians, cooks, storytellers, and other Wish Makers, with reasons visible.
+Wish Book	Compile a keepsake, print/save as PDF, share privately, and revoke sharing.
+Organisation portal	Approved organisations can coordinate stories through permissioned roles and case workflows.
 
-**Fastest way to try it:** open the live demo, choose **Explore the demo**, and follow the guided story of Nani, a fictional grandmother. Then open **How Genie uses Qloo** to see the evidence. All people and Wish Makers in this build are fictional.
 
----
+Other built experiences include Reaction Mode (gentle lit up / no reaction feedback), a non-clinical Bedside Kit, Watch Genie Learn (real agent steps and friendly Qloo call logs), Qloo receipts on wishes, a How Genie uses Qloo evidence page, and a fair Genie vs General AI comparison using the same supplied facts.
+Try the fictional demo
+1. Open the live site and choose Explore the demo.
+2. Follow Nani's guided story or explore Sana's story. Each pinned demo has three fictional Wish Circle contributions.
+3. Inspect the portrait, wishes, source labels, Qloo receipt, Wish Network, and Wish Book.
+4. Visit How Genie uses Qloo and the hospice walkthrough to see the intelligence and coordination layers.
+Do not enter real people's private or medical information into this hackathon demo.
+What is a hospice, and why does Genie have a portal?
+A hospice is a care service focused on comfort, dignity, and quality of life for people nearing the end of life. Genie's hospice portal is not a medical record system or clinical decision tool. It is an already-built organisation coordination layer for managing consented stories and helping staff and volunteers follow up on wishes.
 
-## The problem
+Implemented organisation capabilities include:
+- Organisation application, administrative review, and approval/rejection workflows.
+- Private organisation/member links and roles such as coordinator, volunteer, and viewer (read-only).
+- Consent confirmation before opening a story; opaque case identifiers rather than public personal listings.
+- Organisation dashboard, case management, expiry extensions, deletion, and activity/audit records.
+- Invitation and notification emails for applications, approvals, and team members.
+Status: the portal and backend workflows exist today. Real hospice onboarding, operational validation, and human-supervised pilots are next steps—not features we are claiming to have completed.
+How Qloo powers Genie
+Qloo is the agent's cultural/taste intelligence, not a decorative API call.
+Qloo's job	Implementation	Visible product evidence
+Understand	Resolve favourites through Qloo search/entities and taste tags; expand the portrait with connected taste information.	Taste Portrait, Taste Map, source and resolution labels.
+Discover	Use Qloo Insights with explainability to find related interests, and era/region signals when the supplied portrait is thin.	Clearly marked discovery wish, supporting anchors, Qloo receipt.
+Match	Compare wish signals with potential makers using shared Qloo entity IDs and taste tags, with a plain-name fallback distinguished from Qloo-based evidence.	Wish Network and match reasons.
+Learn	Use positive reactions to adjust portrait evidence and explore related possibilities.	Reaction Mode and updated portrait.
 
-When someone is seriously ill or in the last stage of life, the people around them want to do something meaningful. Generic advice ("play their favourite music", "bring flowers") fails because it does not know the person. What a grandmother from Hyderabad who loved 1970s Hindi film songs and her own mother's biryani would actually treasure is very specific, and a general AI can only guess.
 
-## What Genie does
-
-1. **Taste Portrait.** A family gives quick facts, a few favourites (songs, dishes, films, places), era and place, and can invite relatives through a **Wish Circle** link to add memories. Genie builds a portrait of the person from those inputs.
-2. **Personal wishes.** From the portrait, Genie proposes wishes (for example "someone who sings her favourite songs for her") and one **discovery wish** based on Qloo's "people like them also love" signal. Anything Genie is guessing is labelled as a guess.
-3. **Wish Network.** Each wish is matched to **Wish Makers** (musicians, cooks, storytellers and so on). Every match shows its reasons and whether Qloo or a plain name match found it.
-4. **Wish Book.** A keepsake the family can compile, print and share with a private link, and revoke.
-5. **Reaction Mode** and **Bedside Kit.** Gentle prompts for when a person cannot tell us their favourites, and a small kit for visitors. These are comfort and connection only. Genie is **not** a medical service.
-6. **Side-by-side with a general AI.** The same facts, no Qloo data, shown next to Genie's output, so you can see what Qloo changes.
-7. **Hospice portal (organisation side).** Hospices apply, get approved, and manage stories with roles, consent confirmation, opaque case keys, an activity log and deletion. This is how Genie could be paid for: the hospice, not the family.
-
-## How Genie is Qloo-powered
-
-If Genie worked the same without Qloo, it would be the wrong thing to build. It does not.
-
-| Job | What Qloo does | Where it shows |
-|---|---|---|
-| **Understand** | Every favourite is resolved to a Qloo entity or taste tag (search, tags and insights endpoints). The tags become the portrait's "what kind of taste is this" layer. | Taste Portrait, Taste Map |
-| **Discover** | Qloo's insights endpoint, with explainability on, returns what people with close taste also love. The wish names the anchors Qloo weighted most. When the input is thin, Qloo's audience signals (birth year, city) build a "likely from their era and region" portrait. | Wishes page, discovery wish |
-| **Match** | Wishes are matched to Wish Makers by comparing Qloo entity ids and tags (exact entity, shared taste tags, then an artist Qloo links to the item). | Wish Network, match reasons |
-
-Qloo is visible, not hidden: each wish carries a **Qloo receipt**, there is a **live log of every Qloo call** in plain language, and the **How Genie uses Qloo** page shows the coverage evidence.
-
-### The agent
-
-`run_agent` runs visible steps: **collect → resolve → expand → era and place (only if thin) → build → discover → wishes**. Each step reports real counts (calls, cached, errors).
-
-### Fallback ladder (nothing ever fails empty)
-
-1. Exact entity found
-2. Alternate spelling or alias
-3. Parent item (the artist, cuisine or city)
-4. Era-and-place signals
-5. Not in Qloo: kept, labelled "Suggested by AI, not in Qloo", excluded from Qloo scoring
-6. Qloo error or timeout: a cached answer, or a calm message and a retry
-
-### Honesty rules built into the product
-
-- Every item is labelled: *Told by family*, *They reacted to this*, *Likely from their era and region*, or *Suggested by AI, not in Qloo*.
-- A discovery always says it is a guess.
-- No clinical claims, ever.
-
-### Evidence
-
-- **Coverage test:** 40 real-world inputs (Telugu, Hindi, Urdu and Tamil film songs, Western rock and pop, K-pop, Arabic and Latin music, regional dishes, places, films). 38 of 40 resolved automatically; all 40 land on something true through the ladder. By domain: music 21/23, food 6/6, places 6/6, film 4/4, TV 1/1.
-- **Judge test:** 12 varied fictional people (different cultures and languages) went through the real API, from creating a person to a compiled, shared and deleted Wish Book, with no failed checks.
-- **Automated tests:** hundreds of offline engine checks (fallback ladder, wishes, agent, Reaction Mode, side-by-side, Bedside Kit, cache, circuit breaker, call-log labels) and 162 frontend tests, plus typecheck and a production build.
-
----
-
-## Architecture
-
+Agent workflow
+```mermaid
+flowchart TD
+    A[Family inputs and Wish Circle memories] --> B[Collect and normalise]
+    B --> C[Resolve favourites via Qloo]
+    C --> D[Expand taste signals]
+    D --> E{Portrait too thin?}
+    E -->|Yes| F[Era and region signals - labelled likely]
+    E -->|No| G[Build Taste Portrait]
+    F --> G
+    G --> H[Qloo discovery with explainability]
+    H --> I[Generate 3-5 reviewed-template wishes]
+    I --> J[Match potential Wish Makers]
+    J --> K[Wish Book and organisation coordination]
+    G --> L[Reaction Mode]
+    L --> M[Update source-labelled portrait]
+    M --> H
 ```
-Next.js frontend (Vercel)  ──►  FastAPI backend (Render)  ──►  Supabase Postgres
-                                      │
-                                      ├──►  engine/  (plain Python, never touches the database)
-                                      │        ├──► Qloo API (search, tags, insights)
-                                      │        └──► optional LLM (any OpenAI-compatible endpoint)
-                                      └──►  private engine_cache table (restored at start-up)
+backend/engine/ is a plain-Python, database-independent engine. The FastAPI layer invokes it and persists the returned portrait, wishes, steps, and logs. The UI shows actual counts, cache hits, errors, and friendly call labels rather than a fabricated reasoning animation.
+Six-level resolution and honesty ladder
+1. Exact Qloo entity match.
+2. Alternate spelling or alias.
+3. Relevant parent entity, such as a song's artist, a cuisine, or a place's parent.
+4. Era/region-based possibilities if the portrait is thin—labelled likely, not remembered.
+5. Item not found in Qloo—preserved and labelled, excluded from Qloo scoring.
+6. Qloo error/timeout—use a private cached answer where possible or return a calm unavailable state.
+Items distinguish Told by family, They reacted to this, Likely from their era and region, and Suggested by AI, not in Qloo. A discovery is a suggestion, not a claim about what the person definitely loved. The optional LLM supports free-text interpretation and comparison; the core agent works without it. Wish text defaults to reviewed templates rather than uncontrolled generation.
+System architecture
+```mermaid
+flowchart TB
+    subgraph Users[Experience]
+      Family[Family and Wish Circle]
+      Maker[Wish Maker applicant]
+      Org[Hospice / organisation staff]
+    end
+    subgraph Vercel[Vercel]
+      UI[Next.js 14 / React / TypeScript / Tailwind]
+    end
+    subgraph Render[Render - FastAPI / Python]
+      API[API routers, validation and privacy rules]
+      Agent[Database-independent agent engine]
+      Matching[Wish matching and coordination]
+      Mail[Transactional email adapters]
+    end
+    subgraph Storage[Supabase PostgreSQL]
+      DB[(People, memories, portraits, wishes, makers, organisations, audit)]
+      Cache[(Private engine_cache)]
+    end
+    Qloo[Qloo API: search, tags, insights]
+    LLM[Optional OpenAI-compatible LLM / Gemini]
+    Brevo[Brevo transactional email API]
+    Family --> UI
+    Maker --> UI
+    Org --> UI
+    UI -->|REST / HTTPS| API
+    API --> DB
+    API --> Agent
+    API --> Matching
+    API --> Mail
+    Agent --> Qloo
+    Agent -. optional .-> LLM
+    Agent <--> Cache
+    Matching --> DB
+    Mail --> Brevo
 ```
+Separation of concerns: the frontend renders the experience; the backend owns persistence, access, consent, organisation and maker workflows; the engine owns taste resolution, discovery, reactions and wish generation. Qloo's raw response data and cache are not published in the repository.
+Where Brevo fits
+Genie uses Brevo's transactional email API (https://api.brevo.com/v3/smtp/email) for communication—not for generating wishes or providing taste intelligence.
+- Wish Maker workflow: application acknowledgment with a private status/profile link, administrator notification, review decisions, wish requests, acceptance/decline notifications, and private-link recovery.
+- Organisation workflow: application receipt, administrator alert, approval with a private portal link, and role-specific member invitations.
+- Implementation: backend/mailer.py handles maker/family messages; backend/org_mail.py handles organisation messages. Both use BREVO_API_KEY, a verified sender, and FRONTEND_URL for deployed-site links.
+- Failure behaviour: sending failures are logged and return a failure result; a mail outage must not crash an application or approval operation. Email delivery and links still require manual end-to-end verification with real inboxes.
+The email channel is optional for local exploration, but must be correctly configured for live onboarding and notifications.
+Tech stack
+Layer	Technologies
+Frontend	Next.js 14, React 18, TypeScript, Tailwind CSS, Vitest
+API/backend	Python, FastAPI, psycopg, httpx
+Agent	Plain Python, Qloo API (search/tags/Insights), optional OpenAI-compatible LLM/Gemini
+Database	Supabase PostgreSQL; private engine_cache table
+Email	Brevo transactional email API
+Hosting	Vercel (frontend), Render (backend)
+Development	GitHub, SQL migrations, automated and live checks
 
-| Folder | Contents |
-|---|---|
-| `frontend/` | Next.js 14 app (landing, demo, story pages, Wish Book, org portal, "How Genie uses Qloo") |
-| `backend/` | FastAPI API, Supabase access, matching, email, admin |
-| `backend/engine/` | The agent and Qloo engine: resolve, portrait, wishes, reaction, kit, side-by-side |
-| `backend/migrations/` | SQL migrations `001`–`009` |
-| `docs/` | Engine, contract, privacy, deployment, testing, Devpost notes, reports |
-| `design/` | Design system, copy guidelines, wireframes |
 
-The engine returns data and the backend stores it. The exact input and output shapes are in `docs/engine-contract.md`.
+Repository map
+Genie/
+├── frontend/                 # Family, demo, Wish Book, maker and organisation UI
+├── backend/
+│   ├── engine/               # Qloo client, resolver, portrait, agent, wishes, reactions
+│   ├── routers/              # REST endpoints and product workflows
+│   ├── migrations/           # Database changes (001-009)
+│   ├── mailer.py             # Wish Maker and family transactional emails
+│   ├── org_mail.py           # Organisation transactional emails
+│   ├── matcher.py            # Wish-to-maker matching
+│   ├── engine_cache_store.py # Private Qloo cache persistence
+│   ├── post_deploy_check.py  # Production smoke test
+│   └── refresh_demo_sources.py # Idempotent pinned-demo data refresh
+├── docs/                     # Engine, API contract, privacy, deployment and reports
+├── design/                   # Design system, copy and wireframes
+└── README.md
+The authoritative data shapes are in [`docs/engine-contract.md`](docs/engine-contract.md); deeper implementation notes are in [`docs/Engine.md`](docs/Engine.md) and [`docs/devpost-technical-notes.md`](docs/devpost-technical-notes.md).
+Run locally
+Requirements: Python 3.11+, Node.js/npm, a Supabase PostgreSQL project, and a Qloo key for live taste resolution. Keep keys in local .env files or host settings; never commit them.
+Backend (PowerShell)
+cd backend
+python -m venv venv
+.\venv\Scripts\Activate.ps1
+python -m pip install -r requirements.txt
+Copy-Item .env.example .env
+# Fill backend/.env with your own configuration
+Run backend/schema.sql followed by the SQL files in backend/migrations/ in numerical order in the Supabase SQL Editor. Then, from backend/:
+python engine_cache_store.py init
+python seed.py
+python enrich_makers.py
+uvicorn main:app --reload
+seed.py installs fictional sample Wish Makers. enrich_makers.py requires appropriate Qloo configuration. Open http://127.0.0.1:8000/docs for interactive API documentation.
+Frontend (second terminal)
+cd frontend
+Copy-Item .env.example .env.local
+# Set NEXT_PUBLIC_API_URL=http://127.0.0.1:8000 in .env.local
+npm install
+npm run dev
+Open http://localhost:3000. To validate the frontend:
+npm run typecheck
+npm test
+npm run build
+Backend environment variables
+Variable	Purpose
+DATABASE_URL	Supabase session-pooler PostgreSQL connection string.
+QLOO_API_KEY, QLOO_API_URL	Qloo key and https://hackathon.api.qloo.com.
+LLM_API_KEY, LLM_MODEL, LLM_BASE_URL	Optional OpenAI-compatible LLM configuration.
+ALLOWED_ORIGINS	Allowed frontend origins, comma-separated, without trailing slashes.
+FRONTEND_URL	Public frontend base URL used to construct email links.
+BREVO_API_KEY	Brevo API credential for transactional email.
+MAIL_FROM_EMAIL, MAIL_FROM_NAME	Verified sender email and display name.
+ADMIN_TOKEN, ADMIN_EMAIL	Administrative access and notification recipient.
+DEMO_TTL_DAYS, DEMO_PERSON_IDS	Demo expiry and pinned fictional demo IDs.
+WISH_POLISH, ENGINE_CACHE_RESTORE	Optional wish rewrite and private cache restoration switches.
 
-## Tech stack
 
-Next.js 14, React 18, TypeScript, Tailwind CSS, Vitest · FastAPI, Python, psycopg, httpx · Supabase (Postgres) · Render · Vercel · Qloo API · optional Gemini or any OpenAI-compatible LLM · Brevo (transactional email)
+See [`docs/deployment.md`](docs/deployment.md) for hosting and email configuration. In production, set both FRONTEND_URL and ALLOWED_ORIGINS to the correct Vercel address; check Brevo sender verification and any authorized-IP restrictions.
+Testing and current deployment status
+The project has documented coverage and reliability checks:
+- 40-input Qloo coverage set: 38 direct/automatic resolutions; all 40 handled truthfully through the fallback ladder. This does not mean 40 direct entity matches.
+- 12/12 fictional people completed the documented local judge journey with zero failed checks.
+- 43/43 odd-input/outage checks passed in the documented engine evaluation.
+- 213 offline engine checks, 8 cache-store checks, and 162 frontend tests reported in the project test evidence.
+- Production smoke test, independently rerun on October 30, 2026: 25 passed, 0 failed, including API/database, CORS, both pinned demo journeys, portrait items, Qloo labels, Wish Book and three family voices per persona.
+From backend/, run the production smoke test:
+python -m pip install requests
+python .\post_deploy_check.py https://genie-ld8p.onrender.com --origin https://genie-smoky-iota.vercel.app
+This test creates and deletes temporary fictional demo copies. It is not a substitute for manually submitting an organisation and Wish Maker application and confirming that their emailed private links open the deployed frontend rather than localhost.
 
----
+For additional test commands, see [`docs/testing.md`](docs/testing.md), or run the offline suites in backend/engine/ and backend/test_cache_store.py. The complete fictional-person API journey is in backend/judge_test.py.
+Privacy, dignity and responsible use
+- Minimal personal details: first name/nickname, birth year, region, language and favourites; no medical records required.
+- Private Wish Circle links, contributor consent, bounded inputs, revocable Wish Book sharing, configurable expiry, and deletion of linked personal-story records.
+- Organisation cases use private identifiers, access roles, consent confirmation and audit records.
+- Every inferred interest is visibly separated from family-provided or reaction-confirmed evidence.
+- Qloo receives favourite names; an optional LLM may receive the relevant taste inputs, and the comparison may receive the same family-supplied facts and notes as Genie. Read the consent notice and [`docs/privacy.md`](docs/privacy.md) before use.
+- Qloo response data and cache files are not committed publicly. The private cache is stored separately in Supabase and should not be mistaken for the personal-story records deleted through the person deletion flow.
+- Reaction Mode and Bedside Kit are comfort/connection features, not diagnosis, treatment or medical advice. Food or bedside activities must be checked with the care team.
+Built today vs. next steps
+Already implemented	Requires real-world partners / further validation
+Family journey, Wish Circle, Taste Portrait, agent, wish generation and Wish Book	Testing with consenting families and hospice professionals
+Qloo discovery, receipts, call log, reaction and comparison experiences	Broader cultural and multilingual evaluation
+Sample Wish Maker matching, application/review/request/reply workflows	Verified real Wish Makers, identity checks, availability and human oversight
+Hospice organisation portal, approval, roles, case management and audit	Real organisation onboarding and supervised pilot procedures
+Brevo email integration	Manual delivery/link verification and operational support
 
-## Run it locally
 
-### Backend
+The core product infrastructure exists. The next milestone is connecting it responsibly with real organisations and verified contributors so families can pursue actual wishes. We do not claim current hospice partnerships, verified live Wish Makers, or completed real-world fulfilments, and no wish is guaranteed.
+Team
+Contributor	Role and contributions
+Syeda Alizah	Team lead · Frontend & product experience. Next.js/React UI, family and demo journeys, visual design, Wish Book and hospice-facing frontend, product copy and integration.
+Syeda Umaima	Agent & Qloo engine. Taste resolution, portrait and wish generation, Qloo client/Insights, fallback ladder, Reaction Mode, Bedside Kit, comparison, reliability and engine evaluation.
+Zunairah	Backend, data, privacy & deployment. FastAPI, Supabase schema and migrations, Wish Circle, maker and organisation workflows, matching integration, Brevo email, privacy, hosting and production-demo refresh.
 
-1. `cd backend`
-2. `python -m venv venv`, then `.\venv\Scripts\Activate.ps1` (Windows) or `source venv/bin/activate`
-3. `pip install -r requirements.txt`
-4. Copy `.env.example` to `.env` and fill in the values (table below)
-5. In the Supabase SQL editor, run `backend/schema.sql`, then `backend/migrations/001` through `009` in order
-6. `python engine_cache_store.py init` (creates the private table that keeps the Qloo cache between deploys)
-7. `python seed.py` (loads 15 fictional sample Wish Makers; safe to repeat), then `python enrich_makers.py`
-8. `uvicorn main:app --reload`
-9. Open http://127.0.0.1:8000/docs
 
-### Frontend
-
-1. `cd frontend`
-2. `cp .env.example .env.local` (PowerShell: `Copy-Item .env.example .env.local`). Set `NEXT_PUBLIC_API_URL` to the deployed API or `http://127.0.0.1:8000`.
-3. `npm install`
-4. `npm run dev`, then open http://localhost:3000
-5. Checks: `npm run typecheck`, `npm test`, `npm run build`
-
-### Environment variables (backend)
-
-| Name | Purpose |
-|---|---|
-| `DATABASE_URL` | Supabase session-pooler connection string |
-| `QLOO_API_KEY`, `QLOO_API_URL` | Qloo hackathon key and `https://hackathon.api.qloo.com` |
-| `LLM_API_KEY`, `LLM_MODEL`, `LLM_BASE_URL` | Optional. Any OpenAI-compatible endpoint. Without them everything works except the general-AI side of the comparison |
-| `ALLOWED_ORIGINS`, `FRONTEND_URL` | The frontend address (no trailing slash) |
-| `ADMIN_TOKEN`, `ADMIN_EMAIL` | Admin access and notification address |
-| `BREVO_API_KEY`, `MAIL_FROM_EMAIL`, `MAIL_FROM_NAME` | Email (optional) |
-| `DEMO_TTL_DAYS`, `DEMO_PERSON_IDS` | Demo data expiry and pinned demo people |
-| `WISH_POLISH`, `ENGINE_CACHE_RESTORE` | Optional LLM polish switch; restore the private cache at start-up |
-
-Deployment steps for Render, Supabase and Vercel are in `docs/deployment.md`.
-
----
-
-## Try the engine without a stored person
-
-- `POST /agent/run` runs the whole agent for one fictional person and stores nothing.
-- `POST /agent/compare`, `/agent/reaction-cards`, `/agent/reactions` and `/agent/bedside-kit` power the other screens.
-- Fictional demo people live in `backend/engine/personas.py`. The live site's demo people are Nani and Sana, with family memories in `backend/demo_memories.sql`.
-
-## Tests
-
-Run from `backend/`. The offline suites need no network and no keys.
-
-```
-python engine/test_offline.py
-python engine/test_wishes.py
-python engine/test_agent.py
-python engine/test_reaction.py
-python engine/test_sidebyside.py
-python engine/test_kit.py
-python engine/test_day8.py
-python engine/test_labels.py
-python test_cache_store.py
-```
-
-Frontend, from `frontend/`: `npm test` and `npm run typecheck`.
-
-Against the real Qloo API: `python engine/live_checks.py`, `python engine/live_odd.py` (odd inputs and outages), `python engine/prewarm_run.py`.
-
-Whole path through a running server for varied fictional people: `python judge_test.py <API URL>` (add `--extra` for two odd ones). Post-deploy check: `python post_deploy_check.py <API URL>`.
-
----
-
-## Reliability
-
-Every Qloo call has a connect timeout, retries and a circuit breaker. Answers are cached, so repeat calls are instant and demo people always load fast. No engine function raises to its caller: failure becomes a lower fallback level, fewer wishes, or a calm "unavailable" state.
-
-## Privacy and safety
-
-- No accounts. Minimal data: first name, birth year, region, favourites. No surnames, addresses, health data or ID numbers.
-- Everything for a person can be deleted with one call; demo data expires automatically; Wish Book links can be revoked.
-- Secrets live in environment variables only. `.env` is git-ignored and was never committed.
-- Qloo receives the names of favourites. If an LLM key is set, the LLM receives names of songs, artists, dishes, places and films plus region and language. For the side-by-side comparison, the general AI also receives first name, birth year, region, language, favourites and Wish Circle notes, because that is exactly what Genie was given. Wish Circle contributors see this in the consent note.
-- Free-tier LLM services may use prompts to improve their models, so **never enter real people's details in the demo.**
-- **Qloo data.** Qloo's terms forbid publishing its response data. The engine cache (`backend/engine/_cache/`) and coverage files are git-ignored. A private copy lives in the `engine_cache` database table.
-- Genie is not a medical service. Reaction Mode and the Bedside Kit are comfort and connection only.
-
-## Honest limits
-
-- The Wish Network is seeded with clearly labelled **fictional** sample makers. Real onboarding, identity checks and partner hospices are next steps.
-- The hospice side is a working portal for demonstration; real hospice pilots are future work.
-- Qloo's coverage depends on its data. Songs resolve at artist level and dishes as taste tags; two of 40 test inputs did not resolve directly and fall back through the ladder.
-- The free hosting tier is slow to wake.
-
-## Docs
-
-- `docs/Engine.md`: how the engine works
-- `docs/engine-contract.md`: exact input and output shapes
-- `docs/devpost-technical-notes.md`: how Genie uses Qloo, with evidence
-- `docs/deployment.md`, `docs/testing.md`: deploy and test
-- `docs/privacy.md`: what is collected and how it is deleted
-- `docs/umaima-engine-report-days-1-9.md`, `docs/detailed_backend_report_zunairah.md`: engine and backend reports
-
-## Team
-
-Alizah (team lead, repository, data, matching, deployment) · Umaima (agent and Qloo engine) · Zunairah (design, frontend and backend)
-
-## License
-
-MIT. See `LICENSE`.
+Documentation
+- [`docs/Engine.md`](docs/Engine.md) — Qloo engine and reasoning flow.
+- [`docs/engine-contract.md`](docs/engine-contract.md) — frontend/backend/engine data contracts.
+- [`docs/devpost-technical-notes.md`](docs/devpost-technical-notes.md) — Qloo evidence and honest limitations.
+- [`docs/privacy.md`](docs/privacy.md) — data handling and deletion details.
+- [`docs/deployment.md`](docs/deployment.md) and [`docs/testing.md`](docs/testing.md) — deployment and verification.
+- [`docs/umaima-engine-report-days-1-9.md`](docs/umaima-engine-report-days-1-9.md) and [`docs/detailed_backend_report_zunairah.md`](docs/detailed_backend_report_zunairah.md) — engineering work reports.
+License
+MIT — see LICENSE.
+<div align="center"><strong>Because a lifetime is more than a list of facts. It is everything someone loved.</strong></div>
